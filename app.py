@@ -2,15 +2,12 @@
 """
 AI车牌识别系统
 技术栈：HyperLPR3 车牌检测识别 + DeepSeek 大模型智能分析
-新增：图片压缩防卡顿、多车牌标注、离线属地、CSV导出、接口重试
-
+功能：图片压缩、多车牌标注、离线属地、CSV导出、接口重试
 """
 
 import streamlit as st
 import cv2
 import numpy as np
-from PIL import Image
-from io import BytesIO
 from openai import OpenAI
 import hyperlpr3 as lpr3
 import re
@@ -42,6 +39,7 @@ RULE_BLUE = re.compile(f'^{PROVINCE}{CITY}[A-Z0-9]{{5}}$')
 RULE_GREEN = re.compile(f'^{PROVINCE}{CITY}[A-Z0-9]{{6}}$')
 RULE_YELLOW = re.compile(f'^{PROVINCE}{CITY}[A-Z0-9]{{4,5}}$')
 
+
 # API重试装饰器
 def retry_api(max_retry=2, sleep_sec=1):
     def decorator(func):
@@ -59,18 +57,6 @@ def retry_api(max_retry=2, sleep_sec=1):
         return wrapper
     return decorator
 
-# 图片压缩
-def compress_image(pil_img, max_long=1920):
-    w, h = pil_img.size
-    if max(w, h) <= max_long:
-        return pil_img
-    if w > h:
-        new_w = max_long
-        new_h = int(h * (new_w / w))
-    else:
-        new_h = max_long
-        new_w = int(w * (new_h / h))
-    return pil_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
 
 def smart_plate_parser(raw_plate, plate_color, conf_threshold=0.6, confidence=0.0):
     raw_plate = raw_plate.replace('·', '').strip()
@@ -118,9 +104,11 @@ def smart_plate_parser(raw_plate, plate_color, conf_threshold=0.6, confidence=0.
             plate_type = "未知格式车牌"
     return formatted_plate, raw_plate, confidence, plate_type, addr
 
+
 @st.cache_resource
 def load_lpr():
     return lpr3.LicensePlateCatcher()
+
 
 def parse_lpr_results(results_tuple):
     results_dict = []
@@ -145,6 +133,7 @@ def parse_lpr_results(results_tuple):
             continue
     return results_dict
 
+
 def draw_plate_box(img_bgr, plate_item):
     box = plate_item.get("box")
     if box is None or not isinstance(box, (list, tuple)) or len(box) != 4:
@@ -157,6 +146,7 @@ def draw_plate_box(img_bgr, plate_item):
     except Exception:
         pass
     return img_bgr
+
 
 @retry_api(max_retry=2)
 def deepseek_analyze(plate_number, context_info, api_key):
@@ -178,6 +168,7 @@ def deepseek_analyze(plate_number, context_info, api_key):
     )
     return resp.choices[0].message.content
 
+
 # ========== 页面初始化 ==========
 st.set_page_config(page_title="AI车牌识别系统", layout="centered")
 
@@ -186,14 +177,13 @@ if "history" not in st.session_state:
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = 0
 
-# 优化后的深色主题样式（无外层嵌套背景，卡片占满）
+# 深色主题 + 移动端适配 + 加载动画
 st.markdown("""
 <style>
     .stApp {
         background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
         color: #e0e0e0;
     }
-    /* 移除 Markdown 容器的背景和边距，避免嵌套框 */
     [data-testid="stMarkdownContainer"] {
         background: transparent;
         padding: 0;
@@ -221,7 +211,6 @@ st.markdown("""
     [data-testid="stSidebar"] {
         background: rgba(15, 12, 41, 0.95);
     }
-    /* 卡片样式：占满整列，无外框嵌套 */
     .custom-card {
         background: rgba(255, 255, 255, 0.08);
         border-radius: 10px;
@@ -253,6 +242,79 @@ st.markdown("""
         font-size: 20px;
         font-weight: 600;
         display: inline-block;
+    }
+
+    /* 加载动画 */
+    @keyframes scan-pulse {
+        0%   { background-position: -200% center; }
+        100% { background-position: 200% center; }
+    }
+    .scan-loader {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(0, 230, 118, 0.06);
+        border: 1px solid rgba(0, 230, 118, 0.2);
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin: 8px 0;
+        overflow: hidden;
+    }
+    .scan-bar {
+        flex: 1;
+        height: 6px;
+        border-radius: 3px;
+        background: linear-gradient(
+            90deg,
+            transparent 0%, transparent 30%,
+            #00e676 45%, #00e676 55%,
+            transparent 70%, transparent 100%
+        );
+        background-size: 200% 100%;
+        animation: scan-pulse 1.2s ease-in-out infinite;
+    }
+    .scan-text {
+        color: #00e676;
+        font-size: 14px;
+        white-space: nowrap;
+    }
+
+    /* 移动端适配 */
+    @media (max-width: 640px) {
+        .stApp {
+            padding: 4px !important;
+        }
+        h1 {
+            font-size: 22px !important;
+        }
+        h2 {
+            font-size: 18px !important;
+        }
+        .image-title span {
+            font-size: 16px !important;
+            padding: 4px 12px !important;
+        }
+        .custom-card {
+            padding: 8px 4px !important;
+        }
+        .custom-card-label {
+            font-size: 11px !important;
+        }
+        .custom-card-value {
+            font-size: 14px !important;
+        }
+        [data-testid="column"] {
+            padding: 0 4px !important;
+        }
+        .custom-card {
+            min-height: 60px;
+        }
+    }
+
+    @media (max-width: 768px) and (min-width: 641px) {
+        .custom-card-value {
+            font-size: 15px !important;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -313,22 +375,45 @@ if uploaded_files:
         </div>
         """, unsafe_allow_html=True)
 
-        img_pil_ori = Image.open(BytesIO(file.read()))
-        img_pil = compress_image(img_pil_ori, max_long=1920)
-        st.image(img_pil, caption="原图预览", use_container_width=True)
-        img_cv = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+        # 直接用 OpenCV 读取，兼容性更好
+        file_bytes = np.frombuffer(file.read(), np.uint8)
+        img_cv = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+        if img_cv is None:
+            st.error("无法解析图片，请检查格式")
+            continue
+        img_cv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
+        # 压缩预览图
+        h, w = img_cv.shape[:2]
+        if max(w, h) > 1920:
+            scale = 1920 / max(w, h)
+            new_w, new_h = int(w * scale), int(h * scale)
+            img_cv = cv2.resize(img_cv, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+        st.image(img_cv, caption="原图预览", use_container_width=True)
         draw_img = img_cv.copy()
 
-        with st.spinner("识别车牌中..."):
-            try:
-                res_tuple = lpr(img_cv)
-            except Exception as e:
-                st.error(f"识别异常：{e}")
-                continue
+        # 加载动画
+        loader = st.empty()
+        loader.markdown("""
+        <div class="scan-loader">
+            <span class="scan-text">🔍 扫描车牌中</span>
+            <div class="scan-bar"></div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        try:
+            res_tuple = lpr(img_cv)
+        except Exception as e:
+            loader.empty()
+            st.error(f"识别异常：{e}")
+            continue
         res_list = parse_lpr_results(res_tuple)
+
         if not res_list:
+            loader.empty()
             st.error("未检测到任何车牌")
             continue
+
+        loader.empty()
 
         for one_plate in res_list:
             draw_img = draw_plate_box(draw_img, one_plate)
@@ -367,9 +452,16 @@ if uploaded_files:
                     """, unsafe_allow_html=True)
 
                 if api_key_input.strip():
+                    loader2 = st.empty()
+                    loader2.markdown("""
+                    <div class="scan-loader">
+                        <span class="scan-text" style="color:#40c4ff;">🧠 大模型分析中</span>
+                        <div class="scan-bar" style="background: linear-gradient(90deg, transparent 0%, transparent 30%, #40c4ff 45%, #40c4ff 55%, transparent 70%, transparent 100%); background-size:200% 100%; animation: scan-pulse 1.2s ease-in-out infinite;"></div>
+                    </div>
+                    """, unsafe_allow_html=True)
                     ctx = f"车牌号：{fmt_plate}，系统已识别为：{ptype}。"
-                    with st.spinner("大模型分析..."):
-                        ai_ret = deepseek_analyze(raw, ctx, api_key_input.strip())
+                    ai_ret = deepseek_analyze(raw, ctx, api_key_input.strip())
+                    loader2.empty()
                     st.info(f"AI分析：\n{ai_ret}")
 
                 st.session_state.history.append({
@@ -383,11 +475,10 @@ if uploaded_files:
             else:
                 st.error(f"❌ {ptype}｜{raw}")
 
-        out_pil = Image.fromarray(cv2.cvtColor(draw_img, cv2.COLOR_BGR2RGB))
-        st.image(out_pil, caption="车牌框标注效果图", use_container_width=True)
+        st.image(draw_img, caption="车牌框标注效果图", use_container_width=True)
 
 # 历史表格
 if st.session_state.history:
-    st.markdown("---")
+    st.markdown("<hr style='border-color: rgba(255,255,255,0.08); margin: 24px 0;'>", unsafe_allow_html=True)
     st.subheader("📋 识别记录表")
     st.dataframe(st.session_state.history, use_container_width=True)
