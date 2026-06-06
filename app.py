@@ -3,14 +3,14 @@
 AI车牌识别系统
 技术栈：HyperLPR3 车牌检测识别 + DeepSeek 大模型智能分析
 新增：图片压缩防卡顿、多车牌标注、离线属地、CSV导出、接口重试
-作者：刘博华
-日期：2026-06-06
+
 """
 
 import streamlit as st
 import cv2
 import numpy as np
 from PIL import Image
+from io import BytesIO
 from openai import OpenAI
 import hyperlpr3 as lpr3
 import re
@@ -313,7 +313,7 @@ if uploaded_files:
         </div>
         """, unsafe_allow_html=True)
 
-        img_pil_ori = Image.open(file)
+        img_pil_ori = Image.open(BytesIO(file.read()))
         img_pil = compress_image(img_pil_ori, max_long=1920)
         st.image(img_pil, caption="原图预览", use_container_width=True)
         img_cv = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
