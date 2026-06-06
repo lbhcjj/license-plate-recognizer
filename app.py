@@ -244,7 +244,6 @@ st.markdown("""
         display: inline-block;
     }
 
-    /* 加载动画 */
     @keyframes scan-pulse {
         0%   { background-position: -200% center; }
         100% { background-position: 200% center; }
@@ -279,7 +278,6 @@ st.markdown("""
         white-space: nowrap;
     }
 
-    /* 移动端适配 */
     @media (max-width: 640px) {
         .stApp {
             padding: 4px !important;
@@ -375,12 +373,19 @@ if uploaded_files:
         </div>
         """, unsafe_allow_html=True)
 
-        # 直接用 OpenCV 读取，兼容性更好
-        file_bytes = np.frombuffer(file.read(), np.uint8)
-        img_cv = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+        # 双重解码：先用 OpenCV，失败后用 PIL 兜底
+        file_bytes = file.read()
+        img_cv = cv2.imdecode(np.frombuffer(file_bytes, np.uint8), cv2.IMREAD_COLOR)
         if img_cv is None:
-            st.error("无法解析图片，请检查格式")
-            continue
+            # PIL 兜底
+            from PIL import Image
+            from io import BytesIO
+            try:
+                img_pil = Image.open(BytesIO(file_bytes))
+                img_cv = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+            except Exception:
+                st.error("无法解析图片，请检查格式")
+                continue
         img_cv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
         # 压缩预览图
         h, w = img_cv.shape[:2]
@@ -475,6 +480,7 @@ if uploaded_files:
             else:
                 st.error(f"❌ {ptype}｜{raw}")
 
+        # 直接显示 RGB 图像，无需 PIL
         st.image(draw_img, caption="车牌框标注效果图", use_container_width=True)
 
 # 历史表格
