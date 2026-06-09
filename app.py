@@ -871,13 +871,25 @@ st.markdown("""
     .metric-label { font-size: 10px; }
     .metric-value { font-size: 13px; }
 }
-/* light 模式下结果卡片边框 + 文字加深 */
+/* ── Light 模式背景修复（原CSS双花括号导致.stApp背景不生效） ── */
+[data-theme="light"] .stApp,
+[data-theme="light"] html,
+[data-theme="light"] body,
+[data-theme="light"] #root {
+    background: #f5f5f5 !important;
+}
+[data-theme="light"] [data-testid="stSidebar"] {
+    background: #ffffff !important;
+}
+
+/* light 模式下结果卡片 */
 [data-theme="light"] .result-card {
-    border-color: rgba(0, 0, 0, 0.18) !important;
+    background: #ffffff !important;
+    border-color: rgba(0, 0, 0, 0.15) !important;
     box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important;
 }
 [data-theme="light"] .result-header {
-    border-bottom-color: rgba(0, 0, 0, 0.12) !important;
+    border-bottom-color: rgba(0, 0, 0, 0.1) !important;
 }
 /* ── Dark 模式文字用白色 ── */
 .metric-label {
