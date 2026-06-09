@@ -514,6 +514,7 @@ st.markdown(f"""
     @media (min-width: 769px) {{
         .mobile-hint {{ display: none !important; }}
     }}
+    .mobile-hint {{ color: {TEXT_MUTED} !important; text-align: center; margin-bottom: 10px; font-size: 13px; }}
     @media (max-width: 480px) {{
         .block-container {{ padding: 0.6rem 0.6rem !important; }}
         .plate-number {{ font-size: 18px; }}
@@ -785,9 +786,7 @@ st.markdown("""
     <h1>🚗 AI 车牌识别系统</h1>
     <p class="subtitle">HyperLPR3 车牌检测 · DeepSeek 智能分析 · 多车牌标注 · 记录导出</p>
 </div>
-<div class="mobile-hint" style="text-align:center; margin-bottom:10px; font-size:13px; color: #8892b0;">
-    ☰ 点左上角菜单设置 API Key 和切换主题
-</div>
+<div class="mobile-hint">☰ 点左上角菜单设置 API Key 和切换主题</div>
 """, unsafe_allow_html=True)
 
 # ====================================================================
