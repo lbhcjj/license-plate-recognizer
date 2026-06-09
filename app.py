@@ -933,6 +933,27 @@ st.markdown("""
     0% { transform: translateX(-100%); }
     100% { transform: translateX(400%); }
 }
+
+/* ── AI 分析结果框放大 ── */
+.ai-box {
+    background: rgba(64, 196, 255, 0.06) !important;
+    border: 1px solid rgba(64, 196, 255, 0.15) !important;
+    border-left: 4px solid #40c4ff !important;
+    border-radius: 12px !important;
+    padding: 18px 22px !important;
+    margin: 12px 0 !important;
+    font-size: 16px !important;
+    line-height: 1.8 !important;
+    color: var(--text-primary) !important;
+}
+.ai-box strong {
+    color: #40c4ff !important;
+    font-size: 18px !important;
+}
+@media (max-width: 768px) {
+    .ai-box { font-size: 15px !important; padding: 14px 16px !important; }
+    .ai-box strong { font-size: 16px !important; }
+}
 </style>
 """, unsafe_allow_html=True)
 
