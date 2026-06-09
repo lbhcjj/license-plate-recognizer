@@ -871,13 +871,22 @@ st.markdown("""
     .metric-label { font-size: 10px; }
     .metric-value { font-size: 13px; }
 }
-/* light 模式下结果卡片边框加深 */
+/* light 模式下结果卡片边框 + 文字加深 */
 [data-theme="light"] .result-card {
-    border-color: rgba(0, 0, 0, 0.15) !important;
+    border-color: rgba(0, 0, 0, 0.18) !important;
     box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important;
 }
 [data-theme="light"] .result-header {
-    border-bottom-color: rgba(0, 0, 0, 0.1) !important;
+    border-bottom-color: rgba(0, 0, 0, 0.12) !important;
+}
+[data-theme="light"] .metric-label {
+    color: #4b5563 !important;
+}
+[data-theme="light"] .metric-value {
+    color: #111827 !important;
+}
+[data-theme="light"] .ai-box {
+    color: #1f2937 !important;
 }
 
 /* ── AI 分析加载动画（脉冲环 + 流光进度条） ── */
