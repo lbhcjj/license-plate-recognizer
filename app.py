@@ -791,9 +791,22 @@ st.markdown("""
 
 st.markdown("""
 <style>
-.mobile-settings { display: none; }
+/* 侧边栏主题切换：桌面端显示，手机端隐藏 */
+.sidebar-toggle { display: block; }
+.sidebar-hint { display: none; }
 @media (max-width: 768px) {
-    .mobile-settings { display: block !important; margin-bottom: 16px; }
+    .sidebar-toggle { display: none !important; }
+    .sidebar-hint { display: block !important; }
+}
+/* 修复手机端侧边栏按钮图标显示异常 */
+@media (max-width: 768px) {
+    header[data-testid="stHeader"] button[kind="headerNoPadding"] svg {
+        display: none !important;
+    }
+    header[data-testid="stHeader"] button[kind="headerNoPadding"]::after {
+        content: "☰" !important;
+        font-size: 22px !important;
+    }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -806,7 +819,7 @@ st.markdown("""
     <h1>🚗 AI 车牌识别系统</h1>
     <p class="subtitle">HyperLPR3 车牌检测 · DeepSeek 智能分析 · 多车牌标注 · 记录导出</p>
 </div>
-<div class="mobile-hint">📱 API Key 在侧边栏 ☰ 中设置 · 主题/清空已展示在此</div>
+<div class="mobile-hint">📱 API Key 和主题切换 在右上角 ☰ 菜单中设置</div>
 """, unsafe_allow_html=True)
 
 # ====================================================================
@@ -827,7 +840,8 @@ with st.sidebar:
 
     st.markdown("<hr style='border-color: rgba(255,255,255,0.06); margin: 16px 0;'>", unsafe_allow_html=True)
 
-    # ── 暗色/亮色切换 ──
+    # ── 暗色/亮色切换（桌面端显示，手机端隐藏） ──
+    st.markdown('<div class="sidebar-toggle">', unsafe_allow_html=True)
     THEME = st.session_state.theme_mode
     theme_icon = "🌙" if THEME == "dark" else "☀️"
     theme_label = "暗色主题" if THEME == "dark" else "亮色主题"
@@ -835,6 +849,12 @@ with st.sidebar:
         st.session_state.theme_mode = "light" if THEME == "dark" else "dark"
         st.rerun()
     st.markdown(f"<div style='text-align:center;'><span class='theme-badge'>{theme_icon} 当前：{theme_label}</span></div>", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── 手机端提示（仅手机端显示） ──
+    st.markdown('<div class="sidebar-hint">', unsafe_allow_html=True)
+    st.caption("💡 主题切换请点击页面右上角 **☰** 菜单")
+    st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("<hr style='border-color: rgba(255,255,255,0.06); margin: 16px 0;'>", unsafe_allow_html=True)
 
@@ -863,24 +883,6 @@ with st.sidebar:
 # ====================================================================
 # 主界面
 # ====================================================================
-
-# ── 手机端快捷设置区 ──
-st.markdown('<div class="mobile-settings">', unsafe_allow_html=True)
-ms_col1, ms_col2 = st.columns([1, 1])
-with ms_col1:
-    mt = st.session_state.theme_mode
-    ms_icon = "🌙" if mt == "dark" else "☀️"
-    if st.button(f"{ms_icon} 切换{'亮色' if mt == 'dark' else '暗色'}", key="ms_theme_btn", use_container_width=True):
-        st.session_state.theme_mode = "light" if mt == "dark" else "dark"
-        st.rerun()
-with ms_col2:
-    if st.button("🗑️ 清空记录", key="ms_clear_btn", use_container_width=True):
-        st.session_state.history = []
-        st.session_state.uploader_key += 1
-        st.session_state.files_processed = False
-        st.session_state.results_cache = []
-        st.rerun()
-st.markdown('</div>', unsafe_allow_html=True)
 
 # 上传组件（动态 key）
 uploaded_files = st.file_uploader(
