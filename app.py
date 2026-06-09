@@ -789,6 +789,38 @@ st.markdown("""
 </script>
 """, unsafe_allow_html=True)
 
+st.markdown("""
+<style>
+/* ── 标题居中修复（原CSS因双花括号问题失效） ── */
+.app-header {
+    text-align: center !important;
+    padding: 28px 0 12px 0 !important;
+    margin-bottom: 20px !important;
+    position: relative !important;
+}
+.app-header h1 {
+    font-size: 36px !important;
+    font-weight: 700 !important;
+    margin: 0 !important;
+    background: linear-gradient(135deg, #64ffda, #40c4ff);
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+}
+.app-header .subtitle {
+    color: #8892b0 !important;
+    font-size: 14px !important;
+    margin: 6px 0 0 0 !important;
+    letter-spacing: 1px !important;
+}
+@media (max-width: 768px) {
+    .app-header { padding: 20px 0 6px 0 !important; margin-bottom: 10px !important; }
+    .app-header h1 { font-size: 22px !important; white-space: nowrap !important; }
+    .app-header .subtitle { font-size: 11px !important; }
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ====================================================================
 # 顶部标题
 # ====================================================================
