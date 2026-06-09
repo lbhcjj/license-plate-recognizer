@@ -879,14 +879,25 @@ st.markdown("""
 [data-theme="light"] .result-header {
     border-bottom-color: rgba(0, 0, 0, 0.12) !important;
 }
+/* ── Dark 模式文字用白色 ── */
+.metric-label {
+    color: #d1d5db !important;
+}
+.metric-value {
+    color: #ffffff !important;
+}
+.ai-box {
+    color: #f3f4f6 !important;
+}
+/* ── Light 模式文字用黑色 ── */
 [data-theme="light"] .metric-label {
-    color: #4b5563 !important;
+    color: #000000 !important;
 }
 [data-theme="light"] .metric-value {
-    color: #111827 !important;
+    color: #000000 !important;
 }
 [data-theme="light"] .ai-box {
-    color: #1f2937 !important;
+    color: #000000 !important;
 }
 
 /* ── AI 分析加载动画（脉冲环 + 流光进度条） ── */
