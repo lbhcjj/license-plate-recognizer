@@ -506,6 +506,7 @@ st.markdown(f"""
     @media (max-width: 768px) {{
         .block-container {{ padding: 1rem 1rem !important; }}
         .app-header h1 {{ font-size: 26px; }}
+        .app-header {{ padding-top: 36px !important; }}
         .plate-number {{ font-size: 22px; letter-spacing: 2px; }}
         .plate-card {{ padding: 14px 10px; }}
     }}
@@ -533,15 +534,33 @@ st.markdown(f"""
        使用双倍 class (e.g. .stTextInput.stTextInput) 提高特异性
        ================================================================ */
 
-    /* ---------- 顶部黑杠 ---------- */
-    header[data-testid="stHeader"] {{
-        display: none !important;
+    /* ---------- 顶部黑杠（仅桌面端隐藏，手机端保留 ☰ 汉堡菜单） ---------- */
+    @media (min-width: 769px) {{
+        header[data-testid="stHeader"] {{
+            display: none !important;
+        }}
+        #stDecoration, .stDecoration {{
+            display: none !important;
+        }}
+    }}
+    @media (max-width: 768px) {{
+        header[data-testid="stHeader"] {{
+            display: flex !important;
+            background: rgba(11, 14, 26, 0.85) !important;
+            backdrop-filter: blur(10px) !important;
+            border: none !important;
+            height: 40px !important;
+            min-height: 40px !important;
+        }}
+        header[data-testid="stHeader"] button {{
+            color: #e0e0e0 !important;
+        }}
+        header[data-testid="stHeader"] svg {{
+            fill: #e0e0e0 !important;
+        }}
     }}
     .stApp {{
         margin-top: 0 !important;
-    }}
-    #stDecoration, .stDecoration {{
-        display: none !important;
     }}
 
     /* ---------- 主内容区 ---------- */
