@@ -263,7 +263,7 @@ st.markdown(f"""
 <style>
     /* ---------- 全局 ---------- */
     .stApp {{
-        background: {BG_PRIMARY};
+        background: {BG_PRIMARY} !important;
         color: {TEXT_PRIMARY};
     }}
     .block-container {{
