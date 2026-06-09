@@ -190,6 +190,8 @@ if "files_processed" not in st.session_state:
     st.session_state.files_processed = False
 if "results_cache" not in st.session_state:
     st.session_state.results_cache = []
+if "api_key" not in st.session_state:
+    st.session_state.api_key = ""
 
 # ====================================================================
 # 主题 CSS（根据暗色/亮色切换）
@@ -787,6 +789,15 @@ st.markdown("""
 </script>
 """, unsafe_allow_html=True)
 
+st.markdown("""
+<style>
+.mobile-settings { display: none; }
+@media (max-width: 768px) {
+    .mobile-settings { display: block !important; margin-bottom: 16px; }
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ====================================================================
 # 顶部标题
 # ====================================================================
@@ -795,7 +806,7 @@ st.markdown("""
     <h1>🚗 AI 车牌识别系统</h1>
     <p class="subtitle">HyperLPR3 车牌检测 · DeepSeek 智能分析 · 多车牌标注 · 记录导出</p>
 </div>
-<div class="mobile-hint">☰ 点左上角菜单设置 API Key 和切换主题</div>
+<div class="mobile-hint">📱 API Key 在侧边栏 ☰ 中设置 · 主题/清空已展示在此</div>
 """, unsafe_allow_html=True)
 
 # ====================================================================
@@ -804,11 +815,12 @@ st.markdown("""
 with st.sidebar:
     st.markdown("### ⚙️ 设置")
 
-    api_key_input = st.text_input(
+    st.text_input(
         "DeepSeek API Key",
         type="password",
         placeholder="sk-... (空则跳过AI分析)",
-        help="在 deepseek.com 申请，用于大模型分析"
+        help="在 deepseek.com 申请，用于大模型分析",
+        key="api_key"
     )
 
     conf_threshold = st.slider("置信度阈值", 0.1, 1.0, 0.6, 0.05)
@@ -851,6 +863,24 @@ with st.sidebar:
 # ====================================================================
 # 主界面
 # ====================================================================
+
+# ── 手机端快捷设置区 ──
+st.markdown('<div class="mobile-settings">', unsafe_allow_html=True)
+ms_col1, ms_col2 = st.columns([1, 1])
+with ms_col1:
+    mt = st.session_state.theme_mode
+    ms_icon = "🌙" if mt == "dark" else "☀️"
+    if st.button(f"{ms_icon} 切换{'亮色' if mt == 'dark' else '暗色'}", key="ms_theme_btn", use_container_width=True):
+        st.session_state.theme_mode = "light" if mt == "dark" else "dark"
+        st.rerun()
+with ms_col2:
+    if st.button("🗑️ 清空记录", key="ms_clear_btn", use_container_width=True):
+        st.session_state.history = []
+        st.session_state.uploader_key += 1
+        st.session_state.files_processed = False
+        st.session_state.results_cache = []
+        st.rerun()
+st.markdown('</div>', unsafe_allow_html=True)
 
 # 上传组件（动态 key）
 uploaded_files = st.file_uploader(
@@ -959,7 +989,7 @@ if uploaded_files and not st.session_state.files_processed:
             """, unsafe_allow_html=True)
 
             # AI 分析
-            if api_key_input.strip():
+            if st.session_state.api_key.strip():
                 loader2 = st.empty()
                 loader2.markdown("""
                 <div class="scan-loader">
@@ -968,7 +998,7 @@ if uploaded_files and not st.session_state.files_processed:
                 </div>
                 """, unsafe_allow_html=True)
                 ctx = f"车牌号：{fmt_plate}，系统已识别为：{ptype}。"
-                ai_ret = deepseek_analyze(raw, ctx, api_key_input.strip())
+                ai_ret = deepseek_analyze(raw, ctx, st.session_state.api_key.strip())
                 loader2.empty()
                 st.markdown(f"""
                 <div class="ai-box">
