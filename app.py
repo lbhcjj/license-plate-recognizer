@@ -819,6 +819,123 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+st.markdown("""
+<style>
+/* ── 识别结果卡片（更醒目的布局） ── */
+.result-card {
+    border: 1px solid rgba(100, 255, 218, 0.2) !important;
+    background: rgba(255,255,255,0.06) !important;
+    margin: 16px 0 !important;
+    border-radius: 16px !important;
+    padding: 20px 16px !important;
+}
+.result-header {
+    text-align: center;
+    padding: 8px 0 16px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 16px;
+}
+.result-header .plate-number {
+    font-size: 36px !important;
+    letter-spacing: 4px !important;
+}
+.result-metrics {
+    display: flex !important;
+    justify-content: space-around !important;
+    text-align: center !important;
+    gap: 8px !important;
+}
+.result-metric {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+}
+.metric-icon { font-size: 22px; }
+.metric-label {
+    font-size: 11px;
+    color: #8892b0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+}
+.metric-value {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+@media (max-width: 768px) {
+    .result-header .plate-number { font-size: 28px !important; letter-spacing: 2px !important; }
+    .metric-icon { font-size: 18px; }
+    .metric-label { font-size: 10px; }
+    .metric-value { font-size: 13px; }
+}
+
+/* ── AI 分析加载动画（脉冲环 + 流光进度条） ── */
+.ai-loader {
+    display: flex !important;
+    align-items: center !important;
+    gap: 16px !important;
+    background: rgba(64, 196, 255, 0.05) !important;
+    border: 1px solid rgba(64, 196, 255, 0.15) !important;
+    border-radius: 12px !important;
+    padding: 16px 20px !important;
+    margin: 10px 0 !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+.ai-pulse-ring {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid #40c4ff;
+    animation: ai-pulse 1.5s ease-in-out infinite;
+    flex-shrink: 0;
+}
+@keyframes ai-pulse {
+    0% { transform: scale(0.8); opacity: 0.6; }
+    50% { transform: scale(1.2); opacity: 1; }
+    100% { transform: scale(0.8); opacity: 0.6; }
+}
+.ai-loader-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+}
+.ai-loader-text {
+    color: #40c4ff !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    letter-spacing: 1px !important;
+    animation: ai-text-glow 2s ease-in-out infinite;
+}
+@keyframes ai-text-glow {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; text-shadow: 0 0 8px rgba(64,196,255,0.3); }
+}
+.ai-loader-bar {
+    height: 3px;
+    background: rgba(64, 196, 255, 0.15);
+    border-radius: 2px;
+    overflow: hidden;
+    width: 100%;
+}
+.ai-loader-fill {
+    height: 100%;
+    width: 30%;
+    background: linear-gradient(90deg, transparent, #40c4ff, transparent);
+    border-radius: 2px;
+    animation: ai-loading-bar 1.8s ease-in-out infinite;
+}
+@keyframes ai-loading-bar {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(400%); }
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ====================================================================
 # 顶部标题
 # ====================================================================
@@ -934,6 +1051,9 @@ if uploaded_files and not st.session_state.files_processed:
         loader.empty()
 
         plates_cache = []
+        display_data = []
+
+        # 第一遍：在图上绘制所有标注框，收集结果数据
         for one_plate in res_list:
             draw_img = draw_plate_box(draw_img, one_plate)
             fmt_plate, raw, conf, ptype, addr = smart_plate_parser(
@@ -954,48 +1074,11 @@ if uploaded_files and not st.session_state.files_processed:
             else:
                 badge_cls, badge_txt = "badge-low", "低"
 
-            # 车牌卡片
-            st.markdown(f"""
-            <div class="plate-card">
-                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap:12px; align-items:center;">
-                    <div class="metric-item" style="grid-column: 1 / 2;">
-                        <div class="label">车牌号</div>
-                        <div class="plate-number {color_cls}">{fmt_plate}</div>
-                    </div>
-                    <div class="metric-item">
-                        <div class="label">置信度</div>
-                        <div><span class="badge {badge_cls}">{conf:.0%} · {badge_txt}</span></div>
-                    </div>
-                    <div class="metric-item">
-                        <div class="label">类型</div>
-                        <div class="value" style="font-size:14px;">{ptype}</div>
-                    </div>
-                    <div class="metric-item">
-                        <div class="label">属地</div>
-                        <div class="value highlight">{addr}</div>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # AI 分析
-            if st.session_state.api_key.strip():
-                loader2 = st.empty()
-                loader2.markdown("""
-                <div class="scan-loader">
-                    <div class="scan-dots"><span></span><span></span><span></span></div>
-                    <span class="scan-text blue">🧠 大模型分析中</span>
-                </div>
-                """, unsafe_allow_html=True)
-                ctx = f"车牌号：{fmt_plate}，系统已识别为：{ptype}。"
-                ai_ret = deepseek_analyze(raw, ctx, st.session_state.api_key.strip())
-                loader2.empty()
-                st.markdown(f"""
-                <div class="ai-box">
-                    <strong>🧠 AI 分析</strong><br>
-                    {ai_ret}
-                </div>
-                """, unsafe_allow_html=True)
+            display_data.append({
+                "fmt_plate": fmt_plate, "raw": raw, "conf": conf,
+                "ptype": ptype, "addr": addr, "color_cls": color_cls,
+                "badge_cls": badge_cls, "badge_txt": badge_txt,
+            })
 
             # 写历史（去重）
             already_exists = any(
@@ -1012,7 +1095,7 @@ if uploaded_files and not st.session_state.files_processed:
                     "离线属地": addr
                 })
 
-            # 写入缓存（供主题切换后重显示）
+            # 写入缓存
             plates_cache.append({
                 "box": one_plate["box"],
                 "plate": one_plate["plate"],
@@ -1024,8 +1107,59 @@ if uploaded_files and not st.session_state.files_processed:
                 "color": one_plate.get("color", "unknown"),
             })
 
-        # 标注图
+        # 先展示标注图
         st.image(draw_img, caption="🎯 车牌框标注效果图", use_container_width=True)
+
+        # 在标注图下方展示每个车牌的详细结果
+        for item in display_data:
+            st.markdown(f"""
+            <div class="plate-card result-card">
+                <div class="result-header">
+                    <span class="plate-number {item['color_cls']}">{item['fmt_plate']}</span>
+                </div>
+                <div class="result-metrics">
+                    <div class="result-metric">
+                        <span class="metric-icon">📊</span>
+                        <span class="metric-label">置信度</span>
+                        <span class="badge {item['badge_cls']}">{item['conf']:.0%} · {item['badge_txt']}</span>
+                    </div>
+                    <div class="result-metric">
+                        <span class="metric-icon">🏷️</span>
+                        <span class="metric-label">类型</span>
+                        <span class="metric-value">{item['ptype']}</span>
+                    </div>
+                    <div class="result-metric">
+                        <span class="metric-icon">📍</span>
+                        <span class="metric-label">属地</span>
+                        <span class="metric-value">{item['addr']}</span>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # AI 分析（在结果卡片下方）
+            if st.session_state.api_key.strip():
+                loader2 = st.empty()
+                loader2.markdown("""
+                <div class="ai-loader">
+                    <div class="ai-pulse-ring"></div>
+                    <div class="ai-loader-content">
+                        <span class="ai-loader-text">🧠 AI 智能分析中</span>
+                        <div class="ai-loader-bar">
+                            <div class="ai-loader-fill"></div>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                ctx = f"车牌号：{item['fmt_plate']}，系统已识别为：{item['ptype']}。"
+                ai_ret = deepseek_analyze(item["raw"], ctx, st.session_state.api_key.strip())
+                loader2.empty()
+                st.markdown(f"""
+                <div class="ai-box">
+                    <strong>🧠 AI 分析</strong><br>
+                    {ai_ret}
+                </div>
+                """, unsafe_allow_html=True)
 
         # 整图缓存
         st.session_state.results_cache.append({
@@ -1056,8 +1190,15 @@ elif st.session_state.results_cache:
 
             draw_img = img_cv.copy()
 
+            # 绘制所有标注框
             for plate_data in result["plates"]:
                 draw_img = draw_plate_box(draw_img, plate_data)
+
+            # 先展示标注图
+            st.image(draw_img, caption="🎯 车牌框标注效果图", use_container_width=True)
+
+            # 在图下方展示每个车牌结果
+            for plate_data in result["plates"]:
                 color_cls = plate_data["color"].lower()
                 if color_cls not in ("blue", "green", "yellow"):
                     color_cls = "default"
@@ -1071,29 +1212,29 @@ elif st.session_state.results_cache:
                     badge_cls, badge_txt = "badge-low", "低"
 
                 st.markdown(f"""
-                <div class="plate-card">
-                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap:12px; align-items:center;">
-                        <div class="metric-item" style="grid-column: 1 / 2;">
-                            <div class="label">车牌号</div>
-                            <div class="plate-number {color_cls}">{plate_data['fmt_plate']}</div>
+                <div class="plate-card result-card">
+                    <div class="result-header">
+                        <span class="plate-number {color_cls}">{plate_data['fmt_plate']}</span>
+                    </div>
+                    <div class="result-metrics">
+                        <div class="result-metric">
+                            <span class="metric-icon">📊</span>
+                            <span class="metric-label">置信度</span>
+                            <span class="badge {badge_cls}">{conf:.0%} · {badge_txt}</span>
                         </div>
-                        <div class="metric-item">
-                            <div class="label">置信度</div>
-                            <div><span class="badge {badge_cls}">{conf:.0%} · {badge_txt}</span></div>
+                        <div class="result-metric">
+                            <span class="metric-icon">🏷️</span>
+                            <span class="metric-label">类型</span>
+                            <span class="metric-value">{plate_data['ptype']}</span>
                         </div>
-                        <div class="metric-item">
-                            <div class="label">类型</div>
-                            <div class="value" style="font-size:14px;">{plate_data['ptype']}</div>
-                        </div>
-                        <div class="metric-item">
-                            <div class="label">属地</div>
-                            <div class="value highlight">{plate_data['addr']}</div>
+                        <div class="result-metric">
+                            <span class="metric-icon">📍</span>
+                            <span class="metric-label">属地</span>
+                            <span class="metric-value">{plate_data['addr']}</span>
                         </div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
-
-            st.image(draw_img, caption="🎯 车牌框标注效果图", use_container_width=True)
 
 # ====================================================================
 # 历史记录表
