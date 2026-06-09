@@ -901,15 +901,30 @@ st.markdown("""
 .ai-box {
     color: #f3f4f6 !important;
 }
-/* ── Light 模式文字用黑色 ── */
+/* ========== Light 模式文字对比度增强 ========== */
+[data-theme="light"] .result-metric .metric-value,
+[data-theme="light"] .metric-value,
+[data-theme="light"] .ai-box,
+[data-theme="light"] .ai-box p,
+[data-theme="light"] .ai-box div,
+[data-theme="light"] .ai-box span {
+    color: #000000 !important;
+}
+
+/* AI 分析中的高亮关键词保持蓝色但加深，确保可读 */
+[data-theme="light"] .ai-box strong {
+    color: #0b5e7c !important;
+}
+
+/* 指标标签也适当加深，提升整体对比 */
 [data-theme="light"] .metric-label {
-    color: #000000 !important;
+    color: #2c3e50 !important;
 }
-[data-theme="light"] .metric-value {
-    color: #000000 !important;
-}
-[data-theme="light"] .ai-box {
-    color: #000000 !important;
+
+/* 确保卡片内其他文本也变深（可选） */
+[data-theme="light"] .plate-card,
+[data-theme="light"] .result-card {
+    color: #1a1a2e !important;
 }
 
 /* ── AI 分析加载动画（脉冲环 + 流光进度条） ── */
