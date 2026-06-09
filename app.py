@@ -871,60 +871,69 @@ st.markdown("""
     .metric-label { font-size: 10px; }
     .metric-value { font-size: 13px; }
 }
-/* ── Light 模式背景修复（原CSS双花括号导致.stApp背景不生效） ── */
-[data-theme="light"] .stApp,
-[data-theme="light"] html,
-[data-theme="light"] body,
-[data-theme="light"] #root {
-    background: #f5f5f5 !important;
-}
-[data-theme="light"] [data-testid="stSidebar"] {
-    background: #ffffff !important;
+/* ========== 彻底修复 Light 模式文字对比度 ========== */
+[data-theme="light"] {
+    --bg-primary: #f0f2f6;
+    --bg-card: rgba(255, 255, 255, 0.9);
+    --bg-card-hover: #ffffff;
+    --bg-card-glass: rgba(255, 255, 255, 0.8);
+    --border-card: rgba(0, 0, 0, 0.12);
+    --border-card-hover: rgba(0, 0, 0, 0.2);
+    /* 关键：强制文字颜色为纯黑 */
+    --text-primary: #000000;
+    --text-secondary: #111111;
+    --text-muted: #3a3a4a;
+    --text-heading: #000000;
+    --sidebar-bg: #f8f9fb;
+    --table-th-bg: rgba(0,0,0,0.05);
+    --table-td-border: rgba(0,0,0,0.1);
+    --table-th-border: rgba(0,0,0,0.12);
+    --table-hover: rgba(0,0,0,0.02);
+    --upload-bg: #ffffff;
+    --upload-border: rgba(0,0,0,0.2);
+    --scroll-thumb: #b0b0b0;
+    --scroll-thumb-hover: #909090;
+    --loader-bg: #ffffff;
+    --loader-border: rgba(0,0,0,0.1);
+    --ai-box-bg: rgba(33, 150, 243, 0.08);
+    --ai-box-border: rgba(33, 150, 243, 0.25);
+    --divider-color: rgba(0,0,0,0.1);
+    --input-bg: #ffffff;
+    --btn-bg: #ffffff;
+    --alert-bg: rgba(255,255,255,0.9);
+    --sidebar-text: #111111;
+    --caption-color: #2c3e50;
+    --expander-bg: rgba(0,0,0,0.02);
 }
 
-/* light 模式下结果卡片 */
-[data-theme="light"] .result-card {
-    background: #ffffff !important;
-    border-color: rgba(0, 0, 0, 0.15) !important;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important;
-}
-[data-theme="light"] .result-header {
-    border-bottom-color: rgba(0, 0, 0, 0.1) !important;
-}
-/* ── Dark 模式文字用白色 ── */
-.metric-label {
-    color: #d1d5db !important;
-}
-.metric-value {
-    color: #ffffff !important;
-}
-.ai-box {
-    color: #f3f4f6 !important;
-}
-/* ========== Light 模式文字对比度增强 ========== */
-[data-theme="light"] .result-metric .metric-value,
+/* 额外保证 .ai-box 和 .metric-value 绝对使用黑色（防止变量未覆盖） */
 [data-theme="light"] .metric-value,
 [data-theme="light"] .ai-box,
 [data-theme="light"] .ai-box p,
+[data-theme="light"] .ai-box span,
 [data-theme="light"] .ai-box div,
-[data-theme="light"] .ai-box span {
+[data-theme="light"] .result-card .metric-value,
+[data-theme="light"] .plate-card .metric-value {
     color: #000000 !important;
 }
 
-/* AI 分析中的高亮关键词保持蓝色但加深，确保可读 */
+/* AI 分析中的关键词保持醒目但加深 */
 [data-theme="light"] .ai-box strong {
     color: #0b5e7c !important;
 }
 
-/* 指标标签也适当加深，提升整体对比 */
-[data-theme="light"] .metric-label {
-    color: #2c3e50 !important;
+/* 置信度 badge 在 Light 模式下的调整 */
+[data-theme="light"] .badge-high {
+    background: rgba(0, 200, 150, 0.15);
+    color: #006653;
 }
-
-/* 确保卡片内其他文本也变深（可选） */
-[data-theme="light"] .plate-card,
-[data-theme="light"] .result-card {
-    color: #1a1a2e !important;
+[data-theme="light"] .badge-medium {
+    background: rgba(255, 180, 30, 0.15);
+    color: #b45f06;
+}
+[data-theme="light"] .badge-low {
+    background: rgba(255, 80, 80, 0.15);
+    color: #b71c1c;
 }
 
 /* ── AI 分析加载动画（脉冲环 + 流光进度条） ── */
