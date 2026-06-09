@@ -140,9 +140,15 @@ def draw_plate_box(img_bgr, plate_item):
         return img_bgr
     try:
         x1, y1, x2, y2 = map(int, box)
-        cv2.rectangle(img_bgr, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.putText(img_bgr, plate_item["plate"], (x1, y1-8),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        # 更醒目的标注框
+        cv2.rectangle(img_bgr, (x1, y1), (x2, y2), (0, 255, 120), 3)
+        cv2.rectangle(img_bgr, (x1, y1), (x2, y2), (0, 200, 80), 1)
+        # 标签背景
+        label = plate_item["plate"]
+        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMLEX, 0.7, 2)
+        cv2.rectangle(img_bgr, (x1, y1 - th - 10), (x1 + tw + 8, y1), (0, 200, 80), -1)
+        cv2.putText(img_bgr, label, (x1 + 4, y1 - 5),
+                    cv2.FONT_HERSHEY_SIMLEX, 0.7, (0, 0, 0), 2)
     except Exception:
         pass
     return img_bgr
@@ -169,230 +175,682 @@ def deepseek_analyze(plate_number, context_info, api_key):
     return resp.choices[0].message.content
 
 
-# ========== 页面初始化 ==========
-st.set_page_config(page_title="AI车牌识别系统", layout="centered")
+# ====================================================================
+# 页面初始化
+# ====================================================================
+st.set_page_config(page_title="AI车牌识别系统", layout="wide", page_icon="🚗")
 
 if "history" not in st.session_state:
     st.session_state.history = []
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = 0
+if "theme_mode" not in st.session_state:
+    st.session_state.theme_mode = "dark"
+if "files_processed" not in st.session_state:
+    st.session_state.files_processed = False
+if "results_cache" not in st.session_state:
+    st.session_state.results_cache = []
 
-# 深色主题 + 移动端适配 + 加载动画
-st.markdown("""
+# ====================================================================
+# 主题 CSS（根据暗色/亮色切换）
+# ====================================================================
+THEME = st.session_state.theme_mode
+
+if THEME == "dark":
+    BG_PRIMARY = "#0b0e1a"
+    BG_CARD = "rgba(255, 255, 255, 0.04)"
+    BG_CARD_HOVER = "rgba(255, 255, 255, 0.07)"
+    BG_CARD_GLASS = "rgba(255, 255, 255, 0.05)"
+    BORDER_CARD = "rgba(255, 255, 255, 0.06)"
+    BORDER_CARD_HOVER = "rgba(255, 255, 255, 0.12)"
+    TEXT_PRIMARY = "#e0e0e0"
+    TEXT_SECONDARY = "#c8cdd8"
+    TEXT_MUTED = "#8892b0"
+    TEXT_HEADING = "#f0f4ff"
+    SIDEBAR_BG = "rgba(11, 14, 26, 0.98)"
+    TABLE_TH_BG = "rgba(255,255,255,0.06)"
+    TABLE_TD_BORDER = "rgba(255,255,255,0.04)"
+    TABLE_TH_BORDER = "rgba(255,255,255,0.08)"
+    TABLE_HOVER = "rgba(255,255,255,0.03)"
+    UPLOAD_BG = "rgba(255,255,255,0.03)"
+    UPLOAD_BORDER = "rgba(255,255,255,0.12)"
+    SCROLL_THUMB = "#2a2d40"
+    SCROLL_THUMB_HOVER = "#3a3d55"
+    LOADER_BG = "rgba(255, 255, 255, 0.04)"
+    LOADER_BORDER = "rgba(255, 255, 255, 0.08)"
+    AI_BOX_BG = "rgba(64, 196, 255, 0.06)"
+    AI_BOX_BORDER = "rgba(64, 196, 255, 0.15)"
+    DIVIDER_COLOR = "rgba(255,255,255,0.08)"
+    INPUT_BG = "rgba(255,255,255,0.06)"
+    BTN_BG = "rgba(255,255,255,0.06)"
+    ALERT_BG = "rgba(255,255,255,0.04)"
+    SIDEBAR_TEXT = "#c8cdd8"
+    CAPTION_COLOR = "#8892b0"
+    EXPANDER_BG = "rgba(255,255,255,0.04)"
+else:
+    BG_PRIMARY = "#f0f2f6"
+    BG_CARD = "rgba(255, 255, 255, 0.7)"
+    BG_CARD_HOVER = "rgba(255, 255, 255, 0.9)"
+    BG_CARD_GLASS = "rgba(255, 255, 255, 0.6)"
+    BORDER_CARD = "rgba(0, 0, 0, 0.08)"
+    BORDER_CARD_HOVER = "rgba(0, 0, 0, 0.15)"
+    TEXT_PRIMARY = "#1a1a2e"
+    TEXT_SECONDARY = "#2d2d44"
+    TEXT_MUTED = "#6b7280"
+    TEXT_HEADING = "#1a1a2e"
+    SIDEBAR_BG = "#f8f9fb"
+    TABLE_TH_BG = "rgba(0,0,0,0.04)"
+    TABLE_TD_BORDER = "rgba(0,0,0,0.06)"
+    TABLE_TH_BORDER = "rgba(0,0,0,0.08)"
+    TABLE_HOVER = "rgba(0,0,0,0.02)"
+    UPLOAD_BG = "#ffffff"
+    UPLOAD_BORDER = "rgba(0,0,0,0.15)"
+    SCROLL_THUMB = "#c4c4c4"
+    SCROLL_THUMB_HOVER = "#a0a0a0"
+    LOADER_BG = "#ffffff"
+    LOADER_BORDER = "rgba(0, 0, 0, 0.1)"
+    AI_BOX_BG = "rgba(64, 196, 255, 0.08)"
+    AI_BOX_BORDER = "rgba(64, 196, 255, 0.2)"
+    DIVIDER_COLOR = "rgba(0,0,0,0.08)"
+    INPUT_BG = "#ffffff"
+    BTN_BG = "#ffffff"
+    ALERT_BG = "rgba(255,255,255,0.85)"
+    SIDEBAR_TEXT = "#2d2d44"
+    CAPTION_COLOR = "#6b7280"
+    EXPANDER_BG = "rgba(255,255,255,0.5)"
+
+st.markdown(f"""
 <style>
-    .stApp {
-        background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-        color: #e0e0e0;
-    }
-    [data-testid="stMarkdownContainer"] {
-        background: transparent;
-        padding: 0;
-        margin: 0;
-    }
-    h1, h2, h3, h4 {
-        color: #f0f4ff !important;
-    }
-    .stAlert {
-        border-left: 4px solid #00e676 !important;
-        background: rgba(0, 230, 118, 0.08) !important;
-    }
-    .stAlert.info {
-        border-left: 4px solid #40c4ff !important;
-        background: rgba(64, 196, 255, 0.08) !important;
-    }
-    .stAlert.warning {
-        border-left: 4px solid #ffd740 !important;
-        background: rgba(255, 215, 64, 0.08) !important;
-    }
-    .stAlert.error {
-        border-left: 4px solid #ff5252 !important;
-        background: rgba(255, 82, 82, 0.08) !important;
-    }
-    [data-testid="stSidebar"] {
-        background: rgba(15, 12, 41, 0.95);
-    }
-    .custom-card {
-        background: rgba(255, 255, 255, 0.08);
-        border-radius: 10px;
-        padding: 12px 8px;
-        text-align: center;
-        word-break: break-word;
-        width: 100%;
-        margin: 0;
-        box-sizing: border-box;
-    }
-    .custom-card-label {
-        font-size: 14px;
-        color: #aaa;
-        margin-bottom: 4px;
-    }
-    .custom-card-value {
-        font-size: 18px;
-        font-weight: 500;
-        line-height: 1.3;
-    }
-    .image-title {
-        margin-top: 20px;
-        margin-bottom: 10px;
-    }
-    .image-title span {
-        background: rgba(255, 255, 255, 0.12);
-        padding: 6px 16px;
-        border-radius: 24px;
-        font-size: 20px;
-        font-weight: 600;
-        display: inline-block;
-    }
+    /* ---------- 全局 ---------- */
+    .stApp {{
+        background: {BG_PRIMARY};
+        color: {TEXT_PRIMARY};
+    }}
+    .block-container {{
+        padding: 1.5rem 2rem !important;
+        max-width: 1400px;
+        margin: 0 auto;
+    }}
+    ::-webkit-scrollbar {{ width: 6px; }}
+    ::-webkit-scrollbar-track {{ background: {BG_PRIMARY}; }}
+    ::-webkit-scrollbar-thumb {{ background: {SCROLL_THUMB}; border-radius: 3px; }}
+    ::-webkit-scrollbar-thumb:hover {{ background: {SCROLL_THUMB_HOVER}; }}
 
-    @keyframes scan-pulse {
-        0%   { background-position: -200% center; }
-        100% { background-position: 200% center; }
-    }
-    .scan-loader {
+    /* ---------- 标题文字 ---------- */
+    h1, h2, h3, h4 {{
+        color: {TEXT_HEADING} !important;
+        letter-spacing: 0.3px;
+    }}
+    p, li, .stMarkdown {{
+        color: {TEXT_SECONDARY};
+    }}
+
+    /* ---------- 标题横幅 ---------- */
+    .app-header {{
+        text-align: center;
+        padding: 28px 0 12px 0;
+        margin-bottom: 20px;
+        position: relative;
+    }}
+    .app-header h1 {{
+        font-size: 36px;
+        font-weight: 700;
+        background: linear-gradient(135deg, #64ffda, #40c4ff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin: 0;
+    }}
+    .app-header .subtitle {{
+        color: {TEXT_MUTED};
+        font-size: 14px;
+        margin: 6px 0 0 0;
+        letter-spacing: 1px;
+    }}
+
+    /* ---------- 玻璃卡片基类 ---------- */
+    .glass-card {{
+        background: {BG_CARD_GLASS};
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid {BORDER_CARD};
+        border-radius: 14px;
+        padding: 16px 14px;
+        transition: all 0.25s ease;
+    }}
+    .glass-card:hover {{
+        background: {BG_CARD_HOVER};
+        border-color: {BORDER_CARD_HOVER};
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    }}
+
+    /* ---------- 结果卡片 ---------- */
+    .plate-card {{
+        background: {BG_CARD};
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid {BORDER_CARD};
+        border-radius: 16px;
+        padding: 18px 16px;
+        margin: 8px 0;
+        transition: all 0.25s ease;
+    }}
+    .plate-card:hover {{
+        background: {BG_CARD_HOVER};
+        border-color: {BORDER_CARD_HOVER};
+    }}
+
+    /* 车牌号码大号展示 */
+    .plate-number {{
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: 3px;
+        font-family: 'Courier New', monospace;
+        text-align: center;
+        padding: 8px 0;
+    }}
+    .plate-number.blue {{ color: #4fc3f7; }}
+    .plate-number.green {{ color: #81c784; }}
+    .plate-number.yellow {{ color: #ffd54f; }}
+    .plate-number.default {{ color: {TEXT_PRIMARY}; }}
+
+    /* 指标标签-值对 */
+    .metric-item {{
+        text-align: center;
+        padding: 4px 0;
+    }}
+    .metric-item .label {{
+        font-size: 12px;
+        color: {TEXT_MUTED};
+        margin-bottom: 2px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }}
+    .metric-item .value {{
+        font-size: 16px;
+        font-weight: 600;
+        color: {TEXT_PRIMARY};
+    }}
+    .metric-item .value.highlight {{
+        color: #64ffda;
+    }}
+
+    /* ---------- 置信度徽章 ---------- */
+    .badge {{
+        display: inline-block;
+        padding: 3px 12px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    .badge-high   {{ background: rgba(100, 255, 218, 0.15); color: #64ffda; border: 1px solid rgba(100,255,218,0.3); }}
+    .badge-medium {{ background: rgba(255, 213, 79, 0.15);  color: #ffd54f; border: 1px solid rgba(255,213,79,0.3); }}
+    .badge-low    {{ background: rgba(255, 82, 82, 0.15);   color: #ff5252; border: 1px solid rgba(255,82,82,0.3); }}
+
+    /* ---------- 图片标题 ---------- */
+    .image-header {{
         display: flex;
         align-items: center;
         gap: 10px;
-        background: rgba(0, 230, 118, 0.06);
-        border: 1px solid rgba(0, 230, 118, 0.2);
-        border-radius: 8px;
-        padding: 12px 16px;
-        margin: 8px 0;
-        overflow: hidden;
-    }
-    .scan-bar {
-        flex: 1;
-        height: 6px;
-        border-radius: 3px;
-        background: linear-gradient(
-            90deg,
-            transparent 0%, transparent 30%,
-            #00e676 45%, #00e676 55%,
-            transparent 70%, transparent 100%
-        );
-        background-size: 200% 100%;
-        animation: scan-pulse 1.2s ease-in-out infinite;
-    }
-    .scan-text {
-        color: #00e676;
+        margin: 4px 0 10px 0;
+        padding-bottom: 8px;
+        border-bottom: 1px solid {BORDER_CARD};
+    }}
+    .image-header .icon {{ font-size: 20px; }}
+    .image-header .name {{
+        font-size: 16px;
+        font-weight: 600;
+        color: {TEXT_PRIMARY};
+    }}
+
+    /* ---------- 加载动画 ---------- */
+    @keyframes dot-bounce {{
+        0%, 80%, 100% {{ transform: scale(0); }}
+        40% {{ transform: scale(1); }}
+    }}
+    .scan-loader {{
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        background: {LOADER_BG};
+        border: 1px solid {LOADER_BORDER};
+        border-radius: 12px;
+        padding: 14px 20px;
+        margin: 10px 0;
+        backdrop-filter: blur(8px);
+    }}
+    .scan-dots {{
+        display: flex;
+        gap: 5px;
+    }}
+    .scan-dots span {{
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        animation: dot-bounce 1.4s ease-in-out infinite both;
+    }}
+    .scan-dots span:nth-child(1) {{ background: #64ffda; animation-delay: -0.32s; }}
+    .scan-dots span:nth-child(2) {{ background: #40c4ff; animation-delay: -0.16s; }}
+    .scan-dots span:nth-child(3) {{ background: #b388ff; animation-delay: 0s; }}
+    .scan-text {{
+        color: {TEXT_MUTED};
         font-size: 14px;
-        white-space: nowrap;
-    }
+        font-weight: 500;
+        letter-spacing: 0.5px;
+    }}
+    .scan-text.active {{ color: #64ffda; }}
+    .scan-text.blue   {{ color: #40c4ff; }}
 
-    @media (max-width: 640px) {
-        .stApp {
-            padding: 4px !important;
-        }
-        h1 {
-            font-size: 22px !important;
-        }
-        h2 {
-            font-size: 18px !important;
-        }
-        .image-title span {
-            font-size: 16px !important;
-            padding: 4px 12px !important;
-        }
-        .custom-card {
-            padding: 8px 4px !important;
-        }
-        .custom-card-label {
-            font-size: 11px !important;
-        }
-        .custom-card-value {
-            font-size: 14px !important;
-        }
-        [data-testid="column"] {
-            padding: 0 4px !important;
-        }
-        .custom-card {
-            min-height: 60px;
-        }
-    }
+    /* ---------- 侧边栏 ---------- */
+    [data-testid="stSidebar"] {{
+        background: {SIDEBAR_BG};
+        border-right: 1px solid {BORDER_CARD};
+    }}
+    [data-testid="stSidebar"] .stMarkdown {{
+        color: {TEXT_SECONDARY};
+    }}
 
-    @media (max-width: 768px) and (min-width: 641px) {
-        .custom-card-value {
-            font-size: 15px !important;
-        }
-    }
+    /* ---------- AI 分析框 ---------- */
+    .ai-box {{
+        background: {AI_BOX_BG};
+        border: 1px solid {AI_BOX_BORDER};
+        border-left: 3px solid #40c4ff;
+        border-radius: 10px;
+        padding: 14px 18px;
+        margin: 8px 0;
+        color: {TEXT_SECONDARY};
+        font-size: 14px;
+        line-height: 1.6;
+    }}
+    .ai-box strong {{ color: #40c4ff; }}
+
+    /* ---------- 消息框 ---------- */
+    .stAlert {{ border-radius: 10px !important; border: none !important; }}
+    [data-testid="stAlert"] {{ padding: 12px 16px !important; }}
+    div[data-baseweb="alert"] {{ border-radius: 10px !important; }}
+
+    /* ---------- 按钮 ---------- */
+    .stButton button {{
+        border-radius: 10px !important;
+        font-weight: 500 !important;
+        transition: all 0.2s ease !important;
+        border: 1px solid {BORDER_CARD} !important;
+    }}
+    .stButton button:hover {{
+        transform: translateY(-1px);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }}
+
+    /* ---------- 上传组件 ---------- */
+    [data-testid="stFileUploader"] {{
+        background: {UPLOAD_BG};
+        border: 1px dashed {UPLOAD_BORDER};
+        border-radius: 14px;
+        padding: 10px;
+        transition: border-color 0.3s;
+    }}
+    [data-testid="stFileUploader"]:hover {{
+        border-color: rgba(100,255,218,0.3);
+    }}
+
+    /* ---------- 分割线 ---------- */
+    .section-divider {{
+        border: none;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, {DIVIDER_COLOR}, transparent);
+        margin: 28px 0;
+    }}
+
+    /* ---------- 响应式 ---------- */
+    @media (max-width: 768px) {{
+        .block-container {{ padding: 1rem 1rem !important; }}
+        .app-header h1 {{ font-size: 26px; }}
+        .plate-number {{ font-size: 22px; letter-spacing: 2px; }}
+        .plate-card {{ padding: 14px 10px; }}
+    }}
+    @media (max-width: 480px) {{
+        .block-container {{ padding: 0.6rem 0.6rem !important; }}
+        .plate-number {{ font-size: 18px; }}
+        .metric-item .value {{ font-size: 14px; }}
+    }}
+
+    /* ---------- 主题切换徽章 ---------- */
+    .theme-badge {{
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        padding: 2px 10px;
+        border-radius: 20px;
+        background: {BG_CARD_GLASS};
+        border: 1px solid {BORDER_CARD};
+        color: {TEXT_MUTED};
+    }}
+
+    /* ================================================================
+       以下覆盖 Streamlit 原生组件，确保亮色模式彻底无暗色残留
+       使用双倍 class (e.g. .stTextInput.stTextInput) 提高特异性
+       ================================================================ */
+
+    /* ---------- 顶部黑杠 ---------- */
+    header[data-testid="stHeader"] {{
+        display: none !important;
+    }}
+    .stApp {{
+        margin-top: 0 !important;
+    }}
+    #stDecoration, .stDecoration {{
+        display: none !important;
+    }}
+
+    /* ---------- 主内容区 ---------- */
+    .main > div {{ background: transparent !important; }}
+    section[data-testid="stSidebar"] .stMarkdown,
+    section[data-testid="stSidebar"] p,
+    section[data-testid="stSidebar"] li,
+    section[data-testid="stSidebar"] span {{
+        color: {SIDEBAR_TEXT} !important;
+    }}
+    section[data-testid="stSidebar"] .stCaption {{
+        color: {CAPTION_COLOR} !important;
+    }}
+
+    /* ---------- 文本输入框：全覆盖 ---------- */
+    .stTextInput.stTextInput {{
+        background: transparent !important;
+    }}
+    .stTextInput.stTextInput > div {{
+        background-color: {INPUT_BG} !important;
+        border-radius: 10px !important;
+        border: 1px solid {BORDER_CARD} !important;
+    }}
+    .stTextInput.stTextInput > div > div {{
+        background-color: transparent !important;
+    }}
+    /* 输入文字颜色（双保险：color + -webkit-text-fill-color） */
+    .stTextInput.stTextInput input {{
+        background-color: transparent !important;
+        color: {TEXT_PRIMARY} !important;
+        -webkit-text-fill-color: {TEXT_PRIMARY} !important;
+        caret-color: {TEXT_PRIMARY} !important;
+        border: none !important;
+        box-shadow: none !important;
+    }}
+    .stTextInput.stTextInput input::placeholder {{
+        color: {TEXT_MUTED} !important;
+        -webkit-text-fill-color: {TEXT_MUTED} !important;
+        opacity: 0.7 !important;
+    }}
+    .stTextInput.stTextInput label {{
+        color: {TEXT_SECONDARY} !important;
+    }}
+    /* password 眼睛图标（所有 SVG 层次全覆盖） */
+    .stTextInput [data-testid="stTextInputVisibilityToggle"] {{
+        color: {TEXT_SECONDARY} !important;
+        opacity: 0.65 !important;
+    }}
+    .stTextInput [data-testid="stTextInputVisibilityToggle"] *,
+    .stTextInput [data-testid="stTextInputVisibilityToggle"] svg,
+    .stTextInput [data-testid="stTextInputVisibilityToggle"] svg *,
+    .stTextInput [data-testid="stTextInputVisibilityToggle"] svg path,
+    .stTextInput [data-testid="stTextInputVisibilityToggle"] svg circle,
+    .stTextInput [data-testid="stTextInputVisibilityToggle"] svg line,
+    .stTextInput [data-testid="stTextInputVisibilityToggle"] svg polygon {{
+        fill: {TEXT_SECONDARY} !important;
+        color: {TEXT_SECONDARY} !important;
+        stroke: {TEXT_SECONDARY} !important;
+    }}
+    .stTextInput [data-testid="stTextInputVisibilityToggle"]:hover {{
+        opacity: 1 !important;
+    }}
+
+    /* ---------- 滑块 ---------- */
+    .stSlider.stSlider label {{
+        color: {TEXT_SECONDARY} !important;
+    }}
+    .stSlider.stSlider div[data-testid="stTickBar"] {{
+        color: {TEXT_MUTED} !important;
+    }}
+
+    /* ---------- 普通按钮 + 下载按钮 ---------- */
+    .stButton.stButton button,
+    .stDownloadButton.stDownloadButton button {{
+        background: {BTN_BG} !important;
+        color: {TEXT_PRIMARY} !important;
+        border: 1px solid {BORDER_CARD} !important;
+        border-radius: 10px !important;
+    }}
+    .stButton.stButton button:hover,
+    .stDownloadButton.stDownloadButton button:hover {{
+        background: {BG_CARD_HOVER} !important;
+        border-color: {BORDER_CARD_HOVER} !important;
+    }}
+
+    /* ---------- Alert / info / error / success ---------- */
+    .stAlert.stAlert {{
+        background: {ALERT_BG} !important;
+        backdrop-filter: blur(8px);
+        color: {TEXT_SECONDARY} !important;
+    }}
+
+    /* ---------- 图片 caption ---------- */
+    .stImage.stImage figcaption {{
+        color: {CAPTION_COLOR} !important;
+        font-size: 13px !important;
+    }}
+
+    /* ---------- 展开器 ---------- */
+    .streamlit-expanderHeader {{
+        background: {EXPANDER_BG} !important;
+        color: {TEXT_PRIMARY} !important;
+    }}
+    .streamlit-expanderHeader:hover {{
+        background: {BG_CARD_HOVER} !important;
+    }}
+    .streamlit-expanderContent {{
+        background: transparent !important;
+    }}
+
+    /* ---------- 选择框等 ---------- */
+    .stSelectbox.stSelectbox div[data-baseweb="select"] > div {{
+        background-color: {INPUT_BG} !important;
+        border: 1px solid {BORDER_CARD} !important;
+    }}
+
+    /* ---------- 分隔线 ---------- */
+    hr {{
+        border-color: {DIVIDER_COLOR} !important;
+    }}
+
+    /* ---------- 文件上传器：背景+文字全覆盖 ---------- */
+    [data-testid="stFileUploader"] {{
+        background: {UPLOAD_BG} !important;
+    }}
+    [data-testid="stFileUploader"] section {{
+        color: {TEXT_SECONDARY} !important;
+    }}
+    [data-testid="stFileUploader"] button {{
+        background: {BTN_BG} !important;
+        color: {TEXT_PRIMARY} !important;
+        border: 1px solid {BORDER_CARD} !important;
+    }}
+    /* 上传器内所有 div 背景覆盖 */
+    [data-testid="stFileUploader"] div {{
+        background: transparent !important;
+    }}
+    /* 上传器拖拽区域专门处理 */
+    [data-testid="stFileUploader"] [data-testid="stFileUploadDragzone"] {{
+        background: {UPLOAD_BG} !important;
+        border: 1px dashed {UPLOAD_BORDER} !important;
+    }}
+
+    /* ---------- spinner ---------- */
+    .stSpinner.stSpinner > div {{
+        border-color: {TEXT_MUTED} !important;
+    }}
+
+    /* ---------- tooltip ---------- */
+    [data-baseweb="tooltip"] {{
+        background: {BG_CARD_GLASS} !important;
+        backdrop-filter: blur(12px);
+        color: {TEXT_PRIMARY} !important;
+    }}
+
+    /* ---------- 表格：数据区容器 + 所有子层级 ---------- */
+    /* 先把容器显式设置为主体背景色而非 transparent */
+    [data-testid="stDataFrame"] {{
+        background: {BG_PRIMARY} !important;
+    }}
+    [data-testid="stDataFrame"] > div:first-child {{
+        background: {BG_PRIMARY} !important;
+    }}
+    [data-testid="stDataFrame"] table {{
+        background: {BG_PRIMARY} !important;
+    }}
+    [data-testid="stDataFrame"] thead {{
+        background: {BG_PRIMARY} !important;
+    }}
+    [data-testid="stDataFrame"] th {{
+        background: {TABLE_TH_BG} !important;
+        color: {TEXT_MUTED} !important;
+        border-bottom: 1px solid {TABLE_TH_BORDER} !important;
+    }}
+    [data-testid="stDataFrame"] td {{
+        background: {BG_PRIMARY} !important;
+        color: {TEXT_SECONDARY} !important;
+        border-bottom: 1px solid {TABLE_TD_BORDER} !important;
+    }}
+    [data-testid="stDataFrame"] tr {{
+        background: {BG_PRIMARY} !important;
+    }}
+    [data-testid="stDataFrame"] tbody {{
+        background: {BG_PRIMARY} !important;
+    }}
+    [data-testid="stDataFrame"] tr:hover td {{
+        background: {TABLE_HOVER} !important;
+    }}
+    /* 虚拟滚动容器 */
+    [data-testid="stDataFrame"] [data-testid="StyledVirtuosoItem"] {{
+        background: {BG_PRIMARY} !important;
+    }}
+    [data-testid="stDataFrame"] [data-testid="StyledVirtuosoItem"] td {{
+        background: {BG_PRIMARY} !important;
+    }}
+    [data-testid="stDataFrame"] div[data-testid="StyledVirtuoso"] {{
+        background: {BG_PRIMARY} !important;
+    }}
+    [data-testid="stDataFrame"] [data-testid="StyledVirtuoso"] > div {{
+        background: {BG_PRIMARY} !important;
+    }}
+    /* 表格内任何 emotion 容器 */
+    [data-testid="stDataFrame"] [class] {{
+        background: transparent !important;
+    }}
+    /* 表格区域所有 div 背景清除（确保无暗色残留） */
+    [data-testid="stDataFrame"] div {{
+        background: transparent !important;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
-# Banner
+# ====================================================================
+# 顶部标题
+# ====================================================================
 st.markdown("""
-<div style="text-align:center; padding:24px 0 16px 0; margin-bottom:20px;">
-    <h1 style="color:#fff; font-size:34px; margin:0;">🚗 AI 车牌识别系统</h1>
-    <p style="color:#90caf9; font-size:14px; margin:6px 0 0 0;">
-        HyperLPR3 车牌检测 · DeepSeek 智能分析 · 多车牌标注 · 记录导出
-    </p>
+<div class="app-header">
+    <h1>🚗 AI 车牌识别系统</h1>
+    <p class="subtitle">HyperLPR3 车牌检测 · DeepSeek 智能分析 · 多车牌标注 · 记录导出</p>
 </div>
 """, unsafe_allow_html=True)
 
+# ====================================================================
 # 侧边栏
+# ====================================================================
 with st.sidebar:
-    st.header("⚙️ 设置")
+    st.markdown("### ⚙️ 设置")
+
     api_key_input = st.text_input(
-        "DeepSeek API Key (空则跳过AI)",
+        "DeepSeek API Key",
         type="password",
+        placeholder="sk-... (空则跳过AI分析)",
         help="在 deepseek.com 申请，用于大模型分析"
     )
-    conf_threshold = st.slider("置信度阈值", 0.1, 1.0, 0.6, 0.05)
-    st.caption(f"已识别：{len(st.session_state.history)} 条记录")
 
-    col_btn, _ = st.columns([1, 0.2])
+    conf_threshold = st.slider("置信度阈值", 0.1, 1.0, 0.6, 0.05)
+
+    st.markdown("<hr style='border-color: rgba(255,255,255,0.06); margin: 16px 0;'>", unsafe_allow_html=True)
+
+    # ── 暗色/亮色切换 ──
+    theme_icon = "🌙" if THEME == "dark" else "☀️"
+    theme_label = "暗色主题" if THEME == "dark" else "亮色主题"
+    if st.button(f"{theme_icon} 切换为{'亮色' if THEME == 'dark' else '暗色'}", use_container_width=True):
+        st.session_state.theme_mode = "light" if THEME == "dark" else "dark"
+        st.rerun()
+    st.markdown(f"<div style='text-align:center;'><span class='theme-badge'>{theme_icon} 当前：{theme_label}</span></div>", unsafe_allow_html=True)
+
+    st.markdown("<hr style='border-color: rgba(255,255,255,0.06); margin: 16px 0;'>", unsafe_allow_html=True)
+
+    col_info, col_btn = st.columns([1, 1])
+    with col_info:
+        st.caption(f"📋 已识别 **{len(st.session_state.history)}** 条记录")
     with col_btn:
-        if st.button("🗑️ 清空识别历史", use_container_width=True):
+        if st.button("🗑️ 清空", use_container_width=True):
             st.session_state.history = []
             st.session_state.uploader_key += 1
+            st.session_state.files_processed = False
+            st.session_state.results_cache = []
             st.rerun()
 
     if st.session_state.history:
         df_export = pd.DataFrame(st.session_state.history)
         csv_bytes = df_export.to_csv(index=False, encoding="utf-8-sig").encode()
         st.download_button(
-            "📥 导出全部记录CSV",
+            "📥 导出 CSV",
             csv_bytes,
             "车牌识别记录.csv",
             mime="text/csv",
             use_container_width=True
         )
 
+# ====================================================================
+# 主界面
+# ====================================================================
+
 # 上传组件（动态 key）
 uploaded_files = st.file_uploader(
-    "上传图片(支持批量jpg/png)",
+    "选择图片（支持批量 JPG / PNG）",
     type=["jpg", "jpeg", "png"],
     accept_multiple_files=True,
     key=f"uploader_{st.session_state.uploader_key}"
 )
 
-if uploaded_files:
+if uploaded_files and not st.session_state.files_processed:
+    # ── 首次处理：识别 + 缓存 + 前端显示 ──
+    st.session_state.results_cache = []
     lpr = load_lpr()
-    for idx, file in enumerate(uploaded_files):
-        st.markdown(f"""
-        <div class="image-title">
-            <span>📷 图片 {idx+1} · {file.name}</span>
-        </div>
-        """, unsafe_allow_html=True)
 
-        # 双重解码：先用 OpenCV，失败后用 PIL 兜底
+    for idx, file in enumerate(uploaded_files):
         file_bytes = file.read()
         img_cv = cv2.imdecode(np.frombuffer(file_bytes, np.uint8), cv2.IMREAD_COLOR)
         if img_cv is None:
-            # PIL 兜底
             from PIL import Image
             from io import BytesIO
             try:
                 img_pil = Image.open(BytesIO(file_bytes))
                 img_cv = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
             except Exception:
-                st.error("无法解析图片，请检查格式")
+                st.error(f"⚠️ [{file.name}] 无法解析图片，请检查格式")
                 continue
+
         img_cv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
-        # 压缩预览图
         h, w = img_cv.shape[:2]
         if max(w, h) > 1920:
             scale = 1920 / max(w, h)
             new_w, new_h = int(w * scale), int(h * scale)
             img_cv = cv2.resize(img_cv, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+
+        # 展示原图
         st.image(img_cv, caption="原图预览", use_container_width=True)
         draw_img = img_cv.copy()
 
@@ -400,8 +858,8 @@ if uploaded_files:
         loader = st.empty()
         loader.markdown("""
         <div class="scan-loader">
-            <span class="scan-text">🔍 扫描车牌中</span>
-            <div class="scan-bar"></div>
+            <div class="scan-dots"><span></span><span></span><span></span></div>
+            <span class="scan-text active">🔍 扫描车牌中</span>
         </div>
         """, unsafe_allow_html=True)
 
@@ -409,66 +867,87 @@ if uploaded_files:
             res_tuple = lpr(img_cv)
         except Exception as e:
             loader.empty()
-            st.error(f"识别异常：{e}")
+            st.error(f"⚠️ [{file.name}] 识别异常：{e}")
             continue
-        res_list = parse_lpr_results(res_tuple)
 
+        res_list = parse_lpr_results(res_tuple)
         if not res_list:
             loader.empty()
-            st.error("未检测到任何车牌")
+            st.error(f"⚠️ [{file.name}] 未检测到任何车牌")
             continue
 
         loader.empty()
 
+        plates_cache = []
         for one_plate in res_list:
             draw_img = draw_plate_box(draw_img, one_plate)
             fmt_plate, raw, conf, ptype, addr = smart_plate_parser(
                 one_plate["plate"], one_plate["color"], conf_threshold, one_plate["confidence"]
             )
-            if fmt_plate:
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.markdown(f"""
-                    <div class="custom-card">
-                        <div class="custom-card-label">🚗 车牌号</div>
-                        <div class="custom-card-value">{fmt_plate}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                with col2:
-                    st.markdown(f"""
-                    <div class="custom-card">
-                        <div class="custom-card-label">🎯 置信度</div>
-                        <div class="custom-card-value">{conf:.0%}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                with col3:
-                    st.markdown(f"""
-                    <div class="custom-card">
-                        <div class="custom-card-label">🏷️ 类型</div>
-                        <div class="custom-card-value" style="font-size:16px;">{ptype}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                with col4:
-                    st.markdown(f"""
-                    <div class="custom-card">
-                        <div class="custom-card-label">📍 属地</div>
-                        <div class="custom-card-value">{addr}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+            if not fmt_plate:
+                st.error(f"❌ {ptype}｜{raw}")
+                continue
 
-                if api_key_input.strip():
-                    loader2 = st.empty()
-                    loader2.markdown("""
-                    <div class="scan-loader">
-                        <span class="scan-text" style="color:#40c4ff;">🧠 大模型分析中</span>
-                        <div class="scan-bar" style="background: linear-gradient(90deg, transparent 0%, transparent 30%, #40c4ff 45%, #40c4ff 55%, transparent 70%, transparent 100%); background-size:200% 100%; animation: scan-pulse 1.2s ease-in-out infinite;"></div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    ctx = f"车牌号：{fmt_plate}，系统已识别为：{ptype}。"
-                    ai_ret = deepseek_analyze(raw, ctx, api_key_input.strip())
-                    loader2.empty()
-                    st.info(f"AI分析：\n{ai_ret}")
+            color_cls = one_plate.get("color", "unknown").lower()
+            if color_cls not in ("blue", "green", "yellow"):
+                color_cls = "default"
 
+            if conf >= 0.85:
+                badge_cls, badge_txt = "badge-high", "高"
+            elif conf >= 0.60:
+                badge_cls, badge_txt = "badge-medium", "中"
+            else:
+                badge_cls, badge_txt = "badge-low", "低"
+
+            # 车牌卡片
+            st.markdown(f"""
+            <div class="plate-card">
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap:12px; align-items:center;">
+                    <div class="metric-item" style="grid-column: 1 / 2;">
+                        <div class="label">车牌号</div>
+                        <div class="plate-number {color_cls}">{fmt_plate}</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="label">置信度</div>
+                        <div><span class="badge {badge_cls}">{conf:.0%} · {badge_txt}</span></div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="label">类型</div>
+                        <div class="value" style="font-size:14px;">{ptype}</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="label">属地</div>
+                        <div class="value highlight">{addr}</div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # AI 分析
+            if api_key_input.strip():
+                loader2 = st.empty()
+                loader2.markdown("""
+                <div class="scan-loader">
+                    <div class="scan-dots"><span></span><span></span><span></span></div>
+                    <span class="scan-text blue">🧠 大模型分析中</span>
+                </div>
+                """, unsafe_allow_html=True)
+                ctx = f"车牌号：{fmt_plate}，系统已识别为：{ptype}。"
+                ai_ret = deepseek_analyze(raw, ctx, api_key_input.strip())
+                loader2.empty()
+                st.markdown(f"""
+                <div class="ai-box">
+                    <strong>🧠 AI 分析</strong><br>
+                    {ai_ret}
+                </div>
+                """, unsafe_allow_html=True)
+
+            # 写历史（去重）
+            already_exists = any(
+                h["图片名称"] == file.name and h["号牌"] == fmt_plate
+                for h in st.session_state.history
+            )
+            if not already_exists:
                 st.session_state.history.append({
                     "图片名称": file.name,
                     "号牌": fmt_plate,
@@ -477,14 +956,109 @@ if uploaded_files:
                     "车辆类型": ptype,
                     "离线属地": addr
                 })
-            else:
-                st.error(f"❌ {ptype}｜{raw}")
 
-        # 直接显示 RGB 图像，无需 PIL
-        st.image(draw_img, caption="车牌框标注效果图", use_container_width=True)
+            # 写入缓存（供主题切换后重显示）
+            plates_cache.append({
+                "box": one_plate["box"],
+                "plate": one_plate["plate"],
+                "fmt_plate": fmt_plate,
+                "raw": raw,
+                "confidence": conf,
+                "ptype": ptype,
+                "addr": addr,
+                "color": one_plate.get("color", "unknown"),
+            })
 
-# 历史表格
+        # 标注图
+        st.image(draw_img, caption="🎯 车牌框标注效果图", use_container_width=True)
+
+        # 整图缓存
+        st.session_state.results_cache.append({
+            "file_name": file.name,
+            "file_bytes": file_bytes,
+            "plates": plates_cache,
+        })
+
+    st.session_state.files_processed = True
+
+# ── 主题切换等 rerun 后：从缓存重显示（不重复识别、不写历史）──
+elif st.session_state.results_cache:
+    for idx, result in enumerate(st.session_state.results_cache):
+        with st.expander(f"📷 **{idx+1}. {result['file_name']}**", expanded=True):
+            # 解码原图
+            img_cv = cv2.imdecode(np.frombuffer(result["file_bytes"], np.uint8), cv2.IMREAD_COLOR)
+            if img_cv is None:
+                from PIL import Image
+                from io import BytesIO
+                img_pil = Image.open(BytesIO(result["file_bytes"]))
+                img_cv = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+            img_cv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
+            h, w = img_cv.shape[:2]
+            if max(w, h) > 1920:
+                scale = 1920 / max(w, h)
+                new_w, new_h = int(w * scale), int(h * scale)
+                img_cv = cv2.resize(img_cv, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+
+            st.image(img_cv, caption="原图预览", use_container_width=True)
+            draw_img = img_cv.copy()
+
+            for plate_data in result["plates"]:
+                draw_img = draw_plate_box(draw_img, plate_data)
+                color_cls = plate_data["color"].lower()
+                if color_cls not in ("blue", "green", "yellow"):
+                    color_cls = "default"
+
+                conf = plate_data["confidence"]
+                if conf >= 0.85:
+                    badge_cls, badge_txt = "badge-high", "高"
+                elif conf >= 0.60:
+                    badge_cls, badge_txt = "badge-medium", "中"
+                else:
+                    badge_cls, badge_txt = "badge-low", "低"
+
+                st.markdown(f"""
+                <div class="plate-card">
+                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap:12px; align-items:center;">
+                        <div class="metric-item" style="grid-column: 1 / 2;">
+                            <div class="label">车牌号</div>
+                            <div class="plate-number {color_cls}">{plate_data['fmt_plate']}</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="label">置信度</div>
+                            <div><span class="badge {badge_cls}">{conf:.0%} · {badge_txt}</span></div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="label">类型</div>
+                            <div class="value" style="font-size:14px;">{plate_data['ptype']}</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="label">属地</div>
+                            <div class="value highlight">{plate_data['addr']}</div>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.image(draw_img, caption="🎯 车牌框标注效果图", use_container_width=True)
+
+# ====================================================================
+# 历史记录表
+# ====================================================================
 if st.session_state.history:
-    st.markdown("<hr style='border-color: rgba(255,255,255,0.08); margin: 24px 0;'>", unsafe_allow_html=True)
-    st.subheader("📋 识别记录表")
-    st.dataframe(st.session_state.history, use_container_width=True)
+    st.markdown("<hr class='section-divider'>", unsafe_allow_html=True)
+
+    col_title, col_export = st.columns([3, 1])
+    with col_title:
+        st.markdown("### 📋 识别记录表")
+    with col_export:
+        df_export = pd.DataFrame(st.session_state.history)
+        csv_bytes = df_export.to_csv(index=False, encoding="utf-8-sig").encode()
+        st.download_button(
+            "📥 导出 CSV",
+            csv_bytes,
+            "车牌识别记录.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+
+    st.dataframe(st.session_state.history, use_container_width=True, height=280)

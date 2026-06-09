@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Streamlit
+.streamlit/
+
+# 项目数据 / 大文件
+01-data/
+02-models/
+03-llm/
+*.doc
+*.docx
+
+# 系统
+Thumbs.db
+.DS_Store
