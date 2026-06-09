@@ -823,8 +823,8 @@ st.markdown("""
 <style>
 /* ── 识别结果卡片（更醒目的布局） ── */
 .result-card {
-    border: 1px solid rgba(100, 255, 218, 0.2) !important;
-    background: rgba(255,255,255,0.06) !important;
+    border: 1px solid var(--border-card) !important;
+    background: var(--bg-card) !important;
     margin: 16px 0 !important;
     border-radius: 16px !important;
     padding: 20px 16px !important;
@@ -832,7 +832,7 @@ st.markdown("""
 .result-header {
     text-align: center;
     padding: 8px 0 16px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
+    border-bottom: 1px solid var(--divider-color);
     margin-bottom: 16px;
 }
 .result-header .plate-number {
@@ -855,7 +855,7 @@ st.markdown("""
 .metric-icon { font-size: 22px; }
 .metric-label {
     font-size: 11px;
-    color: #8892b0;
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     font-weight: 500;
@@ -870,6 +870,14 @@ st.markdown("""
     .metric-icon { font-size: 18px; }
     .metric-label { font-size: 10px; }
     .metric-value { font-size: 13px; }
+}
+/* light 模式下结果卡片边框加深 */
+[data-theme="light"] .result-card {
+    border-color: rgba(0, 0, 0, 0.15) !important;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important;
+}
+[data-theme="light"] .result-header {
+    border-bottom-color: rgba(0, 0, 0, 0.1) !important;
 }
 
 /* ── AI 分析加载动画（脉冲环 + 流光进度条） ── */
@@ -936,8 +944,8 @@ st.markdown("""
 
 /* ── AI 分析结果框放大 ── */
 .ai-box {
-    background: rgba(64, 196, 255, 0.06) !important;
-    border: 1px solid rgba(64, 196, 255, 0.15) !important;
+    background: var(--ai-box-bg) !important;
+    border: 1px solid var(--ai-box-border) !important;
     border-left: 4px solid #40c4ff !important;
     border-radius: 12px !important;
     padding: 18px 22px !important;
@@ -949,6 +957,17 @@ st.markdown("""
 .ai-box strong {
     color: #40c4ff !important;
     font-size: 18px !important;
+}
+/* light 模式下 AI 左边框更醒目 */
+[data-theme="light"] .ai-box {
+    border-left-color: #2196f3 !important;
+}
+[data-theme="light"] .ai-box strong {
+    color: #1565c0 !important;
+}
+[data-theme="light"] .ai-loader {
+    background: rgba(33, 150, 243, 0.05) !important;
+    border-color: rgba(33, 150, 243, 0.2) !important;
 }
 @media (max-width: 768px) {
     .ai-box { font-size: 15px !important; padding: 14px 16px !important; }
