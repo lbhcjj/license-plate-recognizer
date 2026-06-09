@@ -12,6 +12,8 @@ from openai import OpenAI
 import hyperlpr3 as lpr3
 import re
 import pandas as pd
+from PIL import Image
+from io import BytesIO
 import time
 from functools import wraps
 
@@ -184,8 +186,6 @@ if "history" not in st.session_state:
     st.session_state.history = []
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = 0
-if "theme_mode" not in st.session_state:
-    st.session_state.theme_mode = "dark"
 if "files_processed" not in st.session_state:
     st.session_state.files_processed = False
 if "results_cache" not in st.session_state:
@@ -232,39 +232,6 @@ st.markdown("""
         --caption-color: #8892b0;
         --expander-bg: rgba(255,255,255,0.04);
     }
-    [data-theme="light"] {
-        --bg-primary: #f0f2f6;
-        --bg-card: rgba(255, 255, 255, 0.7);
-        --bg-card-hover: rgba(255, 255, 255, 0.9);
-        --bg-card-glass: rgba(255, 255, 255, 0.6);
-        --border-card: rgba(0, 0, 0, 0.08);
-        --border-card-hover: rgba(0, 0, 0, 0.15);
-        --text-primary: #1a1a2e;
-        --text-secondary: #2d2d44;
-        --text-muted: #6b7280;
-        --text-heading: #1a1a2e;
-        --sidebar-bg: #f8f9fb;
-        --table-th-bg: rgba(0,0,0,0.04);
-        --table-td-border: rgba(0,0,0,0.06);
-        --table-th-border: rgba(0,0,0,0.08);
-        --table-hover: rgba(0,0,0,0.02);
-        --upload-bg: #ffffff;
-        --upload-border: rgba(0,0,0,0.15);
-        --scroll-thumb: #c4c4c4;
-        --scroll-thumb-hover: #a0a0a0;
-        --loader-bg: #ffffff;
-        --loader-border: rgba(0, 0, 0, 0.1);
-        --ai-box-bg: rgba(64, 196, 255, 0.08);
-        --ai-box-border: rgba(64, 196, 255, 0.2);
-        --divider-color: rgba(0,0,0,0.08);
-        --input-bg: #ffffff;
-        --btn-bg: #ffffff;
-        --alert-bg: rgba(255,255,255,0.85);
-        --sidebar-text: #2d2d44;
-        --caption-color: #6b7280;
-        --expander-bg: rgba(255,255,255,0.5);
-    }
-
     /* ---------- 全局 ---------- */
     html, body, #root {{
         background: var(--bg-primary) !important;
@@ -293,46 +260,8 @@ st.markdown("""
     }}
 
     /* ---------- 标题横幅 ---------- */
-    .app-header {{
-        text-align: center;
-        padding: 28px 0 12px 0;
-        margin-bottom: 20px;
-        position: relative;
-    }}
-    .app-header h1 {{
-        font-size: 36px;
-        font-weight: 700;
-        background: linear-gradient(135deg, #64ffda, #40c4ff);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        margin: 0;
-    }}
-    .app-header .subtitle {{
-        color: var(--text-muted);
-        font-size: 14px;
-        margin: 6px 0 0 0;
-        letter-spacing: 1px;
-    }}
 
-    /* ---------- 玻璃卡片基类 ---------- */
-    .glass-card {{
-        background: var(--bg-card-glass);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid var(--border-card);
-        border-radius: 14px;
-        padding: 16px 14px;
-        transition: all 0.25s ease;
-    }}
-    .glass-card:hover {{
-        background: var(--bg-card-hover);
-        border-color: var(--border-card-hover);
-        transform: translateY(-2px);
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
-    }}
-
-    /* ---------- 结果卡片 ---------- */
+/* ---------- 结果卡片 ---------- */
     .plate-card {{
         background: var(--bg-card);
         backdrop-filter: blur(12px);
@@ -362,28 +291,6 @@ st.markdown("""
     .plate-number.yellow {{ color: #ffd54f; }}
     .plate-number.default {{ color: var(--text-primary); }}
 
-    /* 指标标签-值对 */
-    .metric-item {{
-        text-align: center;
-        padding: 4px 0;
-    }}
-    .metric-item .label {{
-        font-size: 12px;
-        color: var(--text-muted);
-        margin-bottom: 2px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }}
-    .metric-item .value {{
-        font-size: 16px;
-        font-weight: 600;
-        color: var(--text-primary);
-    }}
-    .metric-item .value.highlight {{
-        color: #64ffda;
-    }}
-
-    /* ---------- 置信度徽章 ---------- */
     .badge {{
         display: inline-block;
         padding: 3px 12px;
@@ -395,23 +302,7 @@ st.markdown("""
     .badge-medium {{ background: rgba(255, 213, 79, 0.15);  color: #ffd54f; border: 1px solid rgba(255,213,79,0.3); }}
     .badge-low    {{ background: rgba(255, 82, 82, 0.15);   color: #ff5252; border: 1px solid rgba(255,82,82,0.3); }}
 
-    /* ---------- 图片标题 ---------- */
-    .image-header {{
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin: 4px 0 10px 0;
-        padding-bottom: 8px;
-        border-bottom: 1px solid var(--border-card);
-    }}
-    .image-header .icon {{ font-size: 20px; }}
-    .image-header .name {{
-        font-size: 16px;
-        font-weight: 600;
-        color: var(--text-primary);
-    }}
-
-    /* ---------- 加载动画 ---------- */
+/* ---------- 加载动画 ---------- */
     @keyframes dot-bounce {{
         0%, 80%, 100% {{ transform: scale(0); }}
         40% {{ transform: scale(1); }}
@@ -458,19 +349,6 @@ st.markdown("""
         color: var(--text-secondary);
     }}
 
-    /* ---------- AI 分析框 ---------- */
-    .ai-box {{
-        background: var(--ai-box-bg);
-        border: 1px solid var(--ai-box-border);
-        border-left: 3px solid #40c4ff;
-        border-radius: 10px;
-        padding: 14px 18px;
-        margin: 8px 0;
-        color: var(--text-secondary);
-        font-size: 14px;
-        line-height: 1.6;
-    }}
-    .ai-box strong {{ color: #40c4ff; }}
 
     /* ---------- 消息框 ---------- */
     .stAlert {{ border-radius: 10px !important; border: none !important; }}
@@ -512,33 +390,11 @@ st.markdown("""
     /* ---------- 响应式 ---------- */
     @media (max-width: 768px) {{
         .block-container {{ padding: 1rem 1rem !important; }}
-        .app-header h1 {{ font-size: 26px; }}
-        .app-header {{ padding-top: 36px !important; }}
         .plate-number {{ font-size: 22px; letter-spacing: 2px; }}
         .plate-card {{ padding: 14px 10px; }}
-        .mobile-hint {{ display: block !important; }}
-    }}
-    @media (min-width: 769px) {{
-        .mobile-hint {{ display: none !important; }}
-    }}
-    .mobile-hint {{ color: var(--text-muted) !important; text-align: center; margin-bottom: 10px; font-size: 13px; }}
     @media (max-width: 480px) {{
         .block-container {{ padding: 0.6rem 0.6rem !important; }}
         .plate-number {{ font-size: 18px; }}
-        .metric-item .value {{ font-size: 14px; }}
-    }}
-
-    /* ---------- 主题切换徽章 ---------- */
-    .theme-badge {{
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 13px;
-        padding: 2px 10px;
-        border-radius: 20px;
-        background: var(--bg-card-glass);
-        border: 1px solid var(--border-card);
-        color: var(--text-muted);
     }}
 
     /* ================================================================
@@ -783,10 +639,6 @@ st.markdown("""
         background: transparent !important;
     }}
 </style>
-""" + f"""
-<script>
-    document.documentElement.setAttribute('data-theme', '{st.session_state.theme_mode}');
-</script>
 """, unsafe_allow_html=True)
 
 st.markdown("""
@@ -871,60 +723,6 @@ st.markdown("""
     .metric-label { font-size: 10px; }
     .metric-value { font-size: 13px; }
 }
-/* ===== Light 模式强制黑色文字（针对所有关键区域）===== */
-[data-theme="light"] .result-card,
-[data-theme="light"] .plate-card,
-[data-theme="light"] .result-metric .metric-value,
-[data-theme="light"] .metric-value,
-[data-theme="light"] .ai-box,
-[data-theme="light"] .ai-box *,
-[data-theme="light"] .plate-number.default,
-[data-theme="light"] .plate-number,
-[data-theme="light"] .result-header .plate-number {
-    color: #000000 !important;
-}
-
-/* 单独处理 AI 分析框内所有文字（包括段落、span、div） */
-[data-theme="light"] .ai-box p,
-[data-theme="light"] .ai-box span,
-[data-theme="light"] .ai-box div,
-[data-theme="light"] .ai-box strong {
-    color: #000000 !important;
-}
-
-/* 保持 AI 分析中关键词（strong）稍微带点蓝色但也足够深 */
-[data-theme="light"] .ai-box strong {
-    color: #0b5e7c !important;
-}
-
-/* 确保属地、类型等标签文字也是深色（label） */
-[data-theme="light"] .metric-label {
-    color: #2c3e50 !important;
-}
-
-/* 置信度 badge 在 Light 模式下保持深色可读，但不要淡灰 */
-[data-theme="light"] .badge-high {
-    background: rgba(0, 150, 120, 0.15);
-    color: #004d40 !important;
-}
-[data-theme="light"] .badge-medium {
-    background: rgba(255, 170, 0, 0.15);
-    color: #b45f06 !important;
-}
-[data-theme="light"] .badge-low {
-    background: rgba(220, 60, 50, 0.15);
-    color: #a51d0c !important;
-}
-
-/* 额外覆盖任何可能残留的淡灰色变量强制修改为黑色（但不影响亮色模式切换） */
-[data-theme="light"] {
-    --text-primary: #000000 !important;
-    --text-secondary: #111111 !important;
-    --text-muted: #2c3e50 !important;
-    --text-heading: #000000 !important;
-    --sidebar-text: #111111 !important;
-    --caption-color: #2c3e50 !important;
-}
 
 /* ── AI 分析加载动画（脉冲环 + 流光进度条） ── */
 .ai-loader {
@@ -1003,17 +801,6 @@ st.markdown("""
 .ai-box strong {
     color: #40c4ff !important;
     font-size: 18px !important;
-}
-/* light 模式下 AI 左边框更醒目 */
-[data-theme="light"] .ai-box {
-    border-left-color: #2196f3 !important;
-}
-[data-theme="light"] .ai-box strong {
-    color: #1565c0 !important;
-}
-[data-theme="light"] .ai-loader {
-    background: rgba(33, 150, 243, 0.05) !important;
-    border-color: rgba(33, 150, 243, 0.2) !important;
 }
 @media (max-width: 768px) {
     .ai-box { font-size: 15px !important; padding: 14px 16px !important; }
@@ -1094,8 +881,6 @@ if uploaded_files and not st.session_state.files_processed:
         file_bytes = file.read()
         img_cv = cv2.imdecode(np.frombuffer(file_bytes, np.uint8), cv2.IMREAD_COLOR)
         if img_cv is None:
-            from PIL import Image
-            from io import BytesIO
             try:
                 img_pil = Image.open(BytesIO(file_bytes))
                 img_cv = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
@@ -1263,8 +1048,6 @@ elif st.session_state.results_cache:
             # 解码原图
             img_cv = cv2.imdecode(np.frombuffer(result["file_bytes"], np.uint8), cv2.IMREAD_COLOR)
             if img_cv is None:
-                from PIL import Image
-                from io import BytesIO
                 img_pil = Image.open(BytesIO(result["file_bytes"]))
                 img_cv = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
             img_cv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
