@@ -789,28 +789,6 @@ st.markdown("""
 </script>
 """, unsafe_allow_html=True)
 
-st.markdown("""
-<style>
-/* 侧边栏主题切换：桌面端显示，手机端隐藏 */
-.sidebar-toggle { display: block; }
-.sidebar-hint { display: none; }
-@media (max-width: 768px) {
-    .sidebar-toggle { display: none !important; }
-    .sidebar-hint { display: block !important; }
-}
-/* 修复手机端侧边栏按钮图标显示异常 */
-@media (max-width: 768px) {
-    header[data-testid="stHeader"] button[kind="headerNoPadding"] svg {
-        display: none !important;
-    }
-    header[data-testid="stHeader"] button[kind="headerNoPadding"]::after {
-        content: "☰" !important;
-        font-size: 22px !important;
-    }
-}
-</style>
-""", unsafe_allow_html=True)
-
 # ====================================================================
 # 顶部标题
 # ====================================================================
@@ -819,7 +797,6 @@ st.markdown("""
     <h1>🚗 AI 车牌识别系统</h1>
     <p class="subtitle">HyperLPR3 车牌检测 · DeepSeek 智能分析 · 多车牌标注 · 记录导出</p>
 </div>
-<div class="mobile-hint">📱 API Key 和主题切换 在右上角 ☰ 菜单中设置</div>
 """, unsafe_allow_html=True)
 
 # ====================================================================
@@ -840,23 +817,6 @@ with st.sidebar:
 
     st.markdown("<hr style='border-color: rgba(255,255,255,0.06); margin: 16px 0;'>", unsafe_allow_html=True)
 
-    # ── 暗色/亮色切换（桌面端显示，手机端隐藏） ──
-    st.markdown('<div class="sidebar-toggle">', unsafe_allow_html=True)
-    THEME = st.session_state.theme_mode
-    theme_icon = "🌙" if THEME == "dark" else "☀️"
-    theme_label = "暗色主题" if THEME == "dark" else "亮色主题"
-    if st.button(f"{theme_icon} 切换为{'亮色' if THEME == 'dark' else '暗色'}", use_container_width=True):
-        st.session_state.theme_mode = "light" if THEME == "dark" else "dark"
-        st.rerun()
-    st.markdown(f"<div style='text-align:center;'><span class='theme-badge'>{theme_icon} 当前：{theme_label}</span></div>", unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # ── 手机端提示（仅手机端显示） ──
-    st.markdown('<div class="sidebar-hint">', unsafe_allow_html=True)
-    st.caption("💡 主题切换请点击页面右上角 **☰** 菜单")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown("<hr style='border-color: rgba(255,255,255,0.06); margin: 16px 0;'>", unsafe_allow_html=True)
 
     col_info, col_btn = st.columns([1, 1])
     with col_info:
