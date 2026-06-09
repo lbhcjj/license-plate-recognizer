@@ -194,77 +194,82 @@ if "results_cache" not in st.session_state:
 # ====================================================================
 # 主题 CSS（根据暗色/亮色切换）
 # ====================================================================
-THEME = st.session_state.theme_mode
 
-if THEME == "dark":
-    BG_PRIMARY = "#0b0e1a"
-    BG_CARD = "rgba(255, 255, 255, 0.04)"
-    BG_CARD_HOVER = "rgba(255, 255, 255, 0.07)"
-    BG_CARD_GLASS = "rgba(255, 255, 255, 0.05)"
-    BORDER_CARD = "rgba(255, 255, 255, 0.06)"
-    BORDER_CARD_HOVER = "rgba(255, 255, 255, 0.12)"
-    TEXT_PRIMARY = "#e0e0e0"
-    TEXT_SECONDARY = "#c8cdd8"
-    TEXT_MUTED = "#8892b0"
-    TEXT_HEADING = "#f0f4ff"
-    SIDEBAR_BG = "rgba(11, 14, 26, 0.98)"
-    TABLE_TH_BG = "rgba(255,255,255,0.06)"
-    TABLE_TD_BORDER = "rgba(255,255,255,0.04)"
-    TABLE_TH_BORDER = "rgba(255,255,255,0.08)"
-    TABLE_HOVER = "rgba(255,255,255,0.03)"
-    UPLOAD_BG = "rgba(255,255,255,0.03)"
-    UPLOAD_BORDER = "rgba(255,255,255,0.12)"
-    SCROLL_THUMB = "#2a2d40"
-    SCROLL_THUMB_HOVER = "#3a3d55"
-    LOADER_BG = "rgba(255, 255, 255, 0.04)"
-    LOADER_BORDER = "rgba(255, 255, 255, 0.08)"
-    AI_BOX_BG = "rgba(64, 196, 255, 0.06)"
-    AI_BOX_BORDER = "rgba(64, 196, 255, 0.15)"
-    DIVIDER_COLOR = "rgba(255,255,255,0.08)"
-    INPUT_BG = "rgba(255,255,255,0.06)"
-    BTN_BG = "rgba(255,255,255,0.06)"
-    ALERT_BG = "rgba(255,255,255,0.04)"
-    SIDEBAR_TEXT = "#c8cdd8"
-    CAPTION_COLOR = "#8892b0"
-    EXPANDER_BG = "rgba(255,255,255,0.04)"
-else:
-    BG_PRIMARY = "#f0f2f6"
-    BG_CARD = "rgba(255, 255, 255, 0.7)"
-    BG_CARD_HOVER = "rgba(255, 255, 255, 0.9)"
-    BG_CARD_GLASS = "rgba(255, 255, 255, 0.6)"
-    BORDER_CARD = "rgba(0, 0, 0, 0.08)"
-    BORDER_CARD_HOVER = "rgba(0, 0, 0, 0.15)"
-    TEXT_PRIMARY = "#1a1a2e"
-    TEXT_SECONDARY = "#2d2d44"
-    TEXT_MUTED = "#6b7280"
-    TEXT_HEADING = "#1a1a2e"
-    SIDEBAR_BG = "#f8f9fb"
-    TABLE_TH_BG = "rgba(0,0,0,0.04)"
-    TABLE_TD_BORDER = "rgba(0,0,0,0.06)"
-    TABLE_TH_BORDER = "rgba(0,0,0,0.08)"
-    TABLE_HOVER = "rgba(0,0,0,0.02)"
-    UPLOAD_BG = "#ffffff"
-    UPLOAD_BORDER = "rgba(0,0,0,0.15)"
-    SCROLL_THUMB = "#c4c4c4"
-    SCROLL_THUMB_HOVER = "#a0a0a0"
-    LOADER_BG = "#ffffff"
-    LOADER_BORDER = "rgba(0, 0, 0, 0.1)"
-    AI_BOX_BG = "rgba(64, 196, 255, 0.08)"
-    AI_BOX_BORDER = "rgba(64, 196, 255, 0.2)"
-    DIVIDER_COLOR = "rgba(0,0,0,0.08)"
-    INPUT_BG = "#ffffff"
-    BTN_BG = "#ffffff"
-    ALERT_BG = "rgba(255,255,255,0.85)"
-    SIDEBAR_TEXT = "#2d2d44"
-    CAPTION_COLOR = "#6b7280"
-    EXPANDER_BG = "rgba(255,255,255,0.5)"
-
-st.markdown(f"""
+st.markdown("""
 <style>
+    /* ========== CSS 自定义属性（主题色） ========== */
+    :root {
+        --bg-primary: #0b0e1a;
+        --bg-card: rgba(255, 255, 255, 0.04);
+        --bg-card-hover: rgba(255, 255, 255, 0.07);
+        --bg-card-glass: rgba(255, 255, 255, 0.05);
+        --border-card: rgba(255, 255, 255, 0.06);
+        --border-card-hover: rgba(255, 255, 255, 0.12);
+        --text-primary: #e0e0e0;
+        --text-secondary: #c8cdd8;
+        --text-muted: #8892b0;
+        --text-heading: #f0f4ff;
+        --sidebar-bg: rgba(11, 14, 26, 0.98);
+        --table-th-bg: rgba(255,255,255,0.06);
+        --table-td-border: rgba(255,255,255,0.04);
+        --table-th-border: rgba(255,255,255,0.08);
+        --table-hover: rgba(255,255,255,0.03);
+        --upload-bg: rgba(255,255,255,0.03);
+        --upload-border: rgba(255,255,255,0.12);
+        --scroll-thumb: #2a2d40;
+        --scroll-thumb-hover: #3a3d55;
+        --loader-bg: rgba(255, 255, 255, 0.04);
+        --loader-border: rgba(255, 255, 255, 0.08);
+        --ai-box-bg: rgba(64, 196, 255, 0.06);
+        --ai-box-border: rgba(64, 196, 255, 0.15);
+        --divider-color: rgba(255,255,255,0.08);
+        --input-bg: rgba(255,255,255,0.06);
+        --btn-bg: rgba(255,255,255,0.06);
+        --alert-bg: rgba(255,255,255,0.04);
+        --sidebar-text: #c8cdd8;
+        --caption-color: #8892b0;
+        --expander-bg: rgba(255,255,255,0.04);
+    }
+    [data-theme="light"] {
+        --bg-primary: #f0f2f6;
+        --bg-card: rgba(255, 255, 255, 0.7);
+        --bg-card-hover: rgba(255, 255, 255, 0.9);
+        --bg-card-glass: rgba(255, 255, 255, 0.6);
+        --border-card: rgba(0, 0, 0, 0.08);
+        --border-card-hover: rgba(0, 0, 0, 0.15);
+        --text-primary: #1a1a2e;
+        --text-secondary: #2d2d44;
+        --text-muted: #6b7280;
+        --text-heading: #1a1a2e;
+        --sidebar-bg: #f8f9fb;
+        --table-th-bg: rgba(0,0,0,0.04);
+        --table-td-border: rgba(0,0,0,0.06);
+        --table-th-border: rgba(0,0,0,0.08);
+        --table-hover: rgba(0,0,0,0.02);
+        --upload-bg: #ffffff;
+        --upload-border: rgba(0,0,0,0.15);
+        --scroll-thumb: #c4c4c4;
+        --scroll-thumb-hover: #a0a0a0;
+        --loader-bg: #ffffff;
+        --loader-border: rgba(0, 0, 0, 0.1);
+        --ai-box-bg: rgba(64, 196, 255, 0.08);
+        --ai-box-border: rgba(64, 196, 255, 0.2);
+        --divider-color: rgba(0,0,0,0.08);
+        --input-bg: #ffffff;
+        --btn-bg: #ffffff;
+        --alert-bg: rgba(255,255,255,0.85);
+        --sidebar-text: #2d2d44;
+        --caption-color: #6b7280;
+        --expander-bg: rgba(255,255,255,0.5);
+    }
+
     /* ---------- 全局 ---------- */
+    html, body, #root {{
+        background: var(--bg-primary) !important;
+    }}
     .stApp {{
-        background: {BG_PRIMARY} !important;
-        color: {TEXT_PRIMARY};
+        background: var(--bg-primary) !important;
+        color: var(--text-primary);
     }}
     .block-container {{
         padding: 1.5rem 2rem !important;
@@ -272,17 +277,17 @@ st.markdown(f"""
         margin: 0 auto;
     }}
     ::-webkit-scrollbar {{ width: 6px; }}
-    ::-webkit-scrollbar-track {{ background: {BG_PRIMARY}; }}
-    ::-webkit-scrollbar-thumb {{ background: {SCROLL_THUMB}; border-radius: 3px; }}
-    ::-webkit-scrollbar-thumb:hover {{ background: {SCROLL_THUMB_HOVER}; }}
+    ::-webkit-scrollbar-track {{ background: var(--bg-primary); }}
+    ::-webkit-scrollbar-thumb {{ background: var(--scroll-thumb); border-radius: 3px; }}
+    ::-webkit-scrollbar-thumb:hover {{ background: var(--scroll-thumb-hover); }}
 
     /* ---------- 标题文字 ---------- */
     h1, h2, h3, h4 {{
-        color: {TEXT_HEADING} !important;
+        color: var(--text-heading) !important;
         letter-spacing: 0.3px;
     }}
     p, li, .stMarkdown {{
-        color: {TEXT_SECONDARY};
+        color: var(--text-secondary);
     }}
 
     /* ---------- 标题横幅 ---------- */
@@ -302,7 +307,7 @@ st.markdown(f"""
         margin: 0;
     }}
     .app-header .subtitle {{
-        color: {TEXT_MUTED};
+        color: var(--text-muted);
         font-size: 14px;
         margin: 6px 0 0 0;
         letter-spacing: 1px;
@@ -310,35 +315,35 @@ st.markdown(f"""
 
     /* ---------- 玻璃卡片基类 ---------- */
     .glass-card {{
-        background: {BG_CARD_GLASS};
+        background: var(--bg-card-glass);
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
-        border: 1px solid {BORDER_CARD};
+        border: 1px solid var(--border-card);
         border-radius: 14px;
         padding: 16px 14px;
         transition: all 0.25s ease;
     }}
     .glass-card:hover {{
-        background: {BG_CARD_HOVER};
-        border-color: {BORDER_CARD_HOVER};
+        background: var(--bg-card-hover);
+        border-color: var(--border-card-hover);
         transform: translateY(-2px);
         box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
     }}
 
     /* ---------- 结果卡片 ---------- */
     .plate-card {{
-        background: {BG_CARD};
+        background: var(--bg-card);
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
-        border: 1px solid {BORDER_CARD};
+        border: 1px solid var(--border-card);
         border-radius: 16px;
         padding: 18px 16px;
         margin: 8px 0;
         transition: all 0.25s ease;
     }}
     .plate-card:hover {{
-        background: {BG_CARD_HOVER};
-        border-color: {BORDER_CARD_HOVER};
+        background: var(--bg-card-hover);
+        border-color: var(--border-card-hover);
     }}
 
     /* 车牌号码大号展示 */
@@ -353,7 +358,7 @@ st.markdown(f"""
     .plate-number.blue {{ color: #4fc3f7; }}
     .plate-number.green {{ color: #81c784; }}
     .plate-number.yellow {{ color: #ffd54f; }}
-    .plate-number.default {{ color: {TEXT_PRIMARY}; }}
+    .plate-number.default {{ color: var(--text-primary); }}
 
     /* 指标标签-值对 */
     .metric-item {{
@@ -362,7 +367,7 @@ st.markdown(f"""
     }}
     .metric-item .label {{
         font-size: 12px;
-        color: {TEXT_MUTED};
+        color: var(--text-muted);
         margin-bottom: 2px;
         text-transform: uppercase;
         letter-spacing: 0.5px;
@@ -370,7 +375,7 @@ st.markdown(f"""
     .metric-item .value {{
         font-size: 16px;
         font-weight: 600;
-        color: {TEXT_PRIMARY};
+        color: var(--text-primary);
     }}
     .metric-item .value.highlight {{
         color: #64ffda;
@@ -395,13 +400,13 @@ st.markdown(f"""
         gap: 10px;
         margin: 4px 0 10px 0;
         padding-bottom: 8px;
-        border-bottom: 1px solid {BORDER_CARD};
+        border-bottom: 1px solid var(--border-card);
     }}
     .image-header .icon {{ font-size: 20px; }}
     .image-header .name {{
         font-size: 16px;
         font-weight: 600;
-        color: {TEXT_PRIMARY};
+        color: var(--text-primary);
     }}
 
     /* ---------- 加载动画 ---------- */
@@ -413,8 +418,8 @@ st.markdown(f"""
         display: flex;
         align-items: center;
         gap: 14px;
-        background: {LOADER_BG};
-        border: 1px solid {LOADER_BORDER};
+        background: var(--loader-bg);
+        border: 1px solid var(--loader-border);
         border-radius: 12px;
         padding: 14px 20px;
         margin: 10px 0;
@@ -434,7 +439,7 @@ st.markdown(f"""
     .scan-dots span:nth-child(2) {{ background: #40c4ff; animation-delay: -0.16s; }}
     .scan-dots span:nth-child(3) {{ background: #b388ff; animation-delay: 0s; }}
     .scan-text {{
-        color: {TEXT_MUTED};
+        color: var(--text-muted);
         font-size: 14px;
         font-weight: 500;
         letter-spacing: 0.5px;
@@ -444,22 +449,22 @@ st.markdown(f"""
 
     /* ---------- 侧边栏 ---------- */
     [data-testid="stSidebar"] {{
-        background: {SIDEBAR_BG};
-        border-right: 1px solid {BORDER_CARD};
+        background: var(--sidebar-bg) !important;
+        border-right: 1px solid var(--border-card);
     }}
     [data-testid="stSidebar"] .stMarkdown {{
-        color: {TEXT_SECONDARY};
+        color: var(--text-secondary);
     }}
 
     /* ---------- AI 分析框 ---------- */
     .ai-box {{
-        background: {AI_BOX_BG};
-        border: 1px solid {AI_BOX_BORDER};
+        background: var(--ai-box-bg);
+        border: 1px solid var(--ai-box-border);
         border-left: 3px solid #40c4ff;
         border-radius: 10px;
         padding: 14px 18px;
         margin: 8px 0;
-        color: {TEXT_SECONDARY};
+        color: var(--text-secondary);
         font-size: 14px;
         line-height: 1.6;
     }}
@@ -475,7 +480,7 @@ st.markdown(f"""
         border-radius: 10px !important;
         font-weight: 500 !important;
         transition: all 0.2s ease !important;
-        border: 1px solid {BORDER_CARD} !important;
+        border: 1px solid var(--border-card) !important;
     }}
     .stButton button:hover {{
         transform: translateY(-1px);
@@ -484,8 +489,8 @@ st.markdown(f"""
 
     /* ---------- 上传组件 ---------- */
     [data-testid="stFileUploader"] {{
-        background: {UPLOAD_BG};
-        border: 1px dashed {UPLOAD_BORDER};
+        background: var(--upload-bg);
+        border: 1px dashed var(--upload-border);
         border-radius: 14px;
         padding: 10px;
         transition: border-color 0.3s;
@@ -498,7 +503,7 @@ st.markdown(f"""
     .section-divider {{
         border: none;
         height: 1px;
-        background: linear-gradient(90deg, transparent, {DIVIDER_COLOR}, transparent);
+        background: linear-gradient(90deg, transparent, var(--divider-color), transparent);
         margin: 28px 0;
     }}
 
@@ -514,7 +519,7 @@ st.markdown(f"""
     @media (min-width: 769px) {{
         .mobile-hint {{ display: none !important; }}
     }}
-    .mobile-hint {{ color: {TEXT_MUTED} !important; text-align: center; margin-bottom: 10px; font-size: 13px; }}
+    .mobile-hint {{ color: var(--text-muted) !important; text-align: center; margin-bottom: 10px; font-size: 13px; }}
     @media (max-width: 480px) {{
         .block-container {{ padding: 0.6rem 0.6rem !important; }}
         .plate-number {{ font-size: 18px; }}
@@ -529,9 +534,9 @@ st.markdown(f"""
         font-size: 13px;
         padding: 2px 10px;
         border-radius: 20px;
-        background: {BG_CARD_GLASS};
-        border: 1px solid {BORDER_CARD};
-        color: {TEXT_MUTED};
+        background: var(--bg-card-glass);
+        border: 1px solid var(--border-card);
+        color: var(--text-muted);
     }}
 
     /* ================================================================
@@ -551,17 +556,17 @@ st.markdown(f"""
     @media (max-width: 768px) {{
         header[data-testid="stHeader"] {{
             display: flex !important;
-            background: rgba(11, 14, 26, 0.85) !important;
+            background: var(--bg-primary) !important;
             backdrop-filter: blur(10px) !important;
             border: none !important;
             height: 40px !important;
             min-height: 40px !important;
         }}
         header[data-testid="stHeader"] button {{
-            color: #e0e0e0 !important;
+            color: var(--text-primary) !important;
         }}
         header[data-testid="stHeader"] svg {{
-            fill: #e0e0e0 !important;
+            fill: var(--text-primary) !important;
         }}
     }}
     .stApp {{
@@ -574,10 +579,10 @@ st.markdown(f"""
     section[data-testid="stSidebar"] p,
     section[data-testid="stSidebar"] li,
     section[data-testid="stSidebar"] span {{
-        color: {SIDEBAR_TEXT} !important;
+        color: var(--sidebar-text) !important;
     }}
     section[data-testid="stSidebar"] .stCaption {{
-        color: {CAPTION_COLOR} !important;
+        color: var(--caption-color) !important;
     }}
 
     /* ---------- 文本输入框：全覆盖 ---------- */
@@ -585,9 +590,9 @@ st.markdown(f"""
         background: transparent !important;
     }}
     .stTextInput.stTextInput > div {{
-        background-color: {INPUT_BG} !important;
+        background-color: var(--input-bg) !important;
         border-radius: 10px !important;
-        border: 1px solid {BORDER_CARD} !important;
+        border: 1px solid var(--border-card) !important;
     }}
     .stTextInput.stTextInput > div > div {{
         background-color: transparent !important;
@@ -595,23 +600,23 @@ st.markdown(f"""
     /* 输入文字颜色（双保险：color + -webkit-text-fill-color） */
     .stTextInput.stTextInput input {{
         background-color: transparent !important;
-        color: {TEXT_PRIMARY} !important;
-        -webkit-text-fill-color: {TEXT_PRIMARY} !important;
-        caret-color: {TEXT_PRIMARY} !important;
+        color: var(--text-primary) !important;
+        -webkit-text-fill-color: var(--text-primary) !important;
+        caret-color: var(--text-primary) !important;
         border: none !important;
         box-shadow: none !important;
     }}
     .stTextInput.stTextInput input::placeholder {{
-        color: {TEXT_MUTED} !important;
-        -webkit-text-fill-color: {TEXT_MUTED} !important;
+        color: var(--text-muted) !important;
+        -webkit-text-fill-color: var(--text-muted) !important;
         opacity: 0.7 !important;
     }}
     .stTextInput.stTextInput label {{
-        color: {TEXT_SECONDARY} !important;
+        color: var(--text-secondary) !important;
     }}
     /* password 眼睛图标（所有 SVG 层次全覆盖） */
     .stTextInput [data-testid="stTextInputVisibilityToggle"] {{
-        color: {TEXT_SECONDARY} !important;
+        color: var(--text-secondary) !important;
         opacity: 0.65 !important;
     }}
     .stTextInput [data-testid="stTextInputVisibilityToggle"] *,
@@ -621,9 +626,9 @@ st.markdown(f"""
     .stTextInput [data-testid="stTextInputVisibilityToggle"] svg circle,
     .stTextInput [data-testid="stTextInputVisibilityToggle"] svg line,
     .stTextInput [data-testid="stTextInputVisibilityToggle"] svg polygon {{
-        fill: {TEXT_SECONDARY} !important;
-        color: {TEXT_SECONDARY} !important;
-        stroke: {TEXT_SECONDARY} !important;
+        fill: var(--text-secondary) !important;
+        color: var(--text-secondary) !important;
+        stroke: var(--text-secondary) !important;
     }}
     .stTextInput [data-testid="stTextInputVisibilityToggle"]:hover {{
         opacity: 1 !important;
@@ -631,46 +636,46 @@ st.markdown(f"""
 
     /* ---------- 滑块 ---------- */
     .stSlider.stSlider label {{
-        color: {TEXT_SECONDARY} !important;
+        color: var(--text-secondary) !important;
     }}
     .stSlider.stSlider div[data-testid="stTickBar"] {{
-        color: {TEXT_MUTED} !important;
+        color: var(--text-muted) !important;
     }}
 
     /* ---------- 普通按钮 + 下载按钮 ---------- */
     .stButton.stButton button,
     .stDownloadButton.stDownloadButton button {{
-        background: {BTN_BG} !important;
-        color: {TEXT_PRIMARY} !important;
-        border: 1px solid {BORDER_CARD} !important;
+        background: var(--btn-bg) !important;
+        color: var(--text-primary) !important;
+        border: 1px solid var(--border-card) !important;
         border-radius: 10px !important;
     }}
     .stButton.stButton button:hover,
     .stDownloadButton.stDownloadButton button:hover {{
-        background: {BG_CARD_HOVER} !important;
-        border-color: {BORDER_CARD_HOVER} !important;
+        background: var(--bg-card-hover) !important;
+        border-color: var(--border-card-hover) !important;
     }}
 
     /* ---------- Alert / info / error / success ---------- */
     .stAlert.stAlert {{
-        background: {ALERT_BG} !important;
+        background: var(--alert-bg) !important;
         backdrop-filter: blur(8px);
-        color: {TEXT_SECONDARY} !important;
+        color: var(--text-secondary) !important;
     }}
 
     /* ---------- 图片 caption ---------- */
     .stImage.stImage figcaption {{
-        color: {CAPTION_COLOR} !important;
+        color: var(--caption-color) !important;
         font-size: 13px !important;
     }}
 
     /* ---------- 展开器 ---------- */
     .streamlit-expanderHeader {{
-        background: {EXPANDER_BG} !important;
-        color: {TEXT_PRIMARY} !important;
+        background: var(--expander-bg) !important;
+        color: var(--text-primary) !important;
     }}
     .streamlit-expanderHeader:hover {{
-        background: {BG_CARD_HOVER} !important;
+        background: var(--bg-card-hover) !important;
     }}
     .streamlit-expanderContent {{
         background: transparent !important;
@@ -678,26 +683,26 @@ st.markdown(f"""
 
     /* ---------- 选择框等 ---------- */
     .stSelectbox.stSelectbox div[data-baseweb="select"] > div {{
-        background-color: {INPUT_BG} !important;
-        border: 1px solid {BORDER_CARD} !important;
+        background-color: var(--input-bg) !important;
+        border: 1px solid var(--border-card) !important;
     }}
 
     /* ---------- 分隔线 ---------- */
     hr {{
-        border-color: {DIVIDER_COLOR} !important;
+        border-color: var(--divider-color) !important;
     }}
 
     /* ---------- 文件上传器：背景+文字全覆盖 ---------- */
     [data-testid="stFileUploader"] {{
-        background: {UPLOAD_BG} !important;
+        background: var(--upload-bg) !important;
     }}
     [data-testid="stFileUploader"] section {{
-        color: {TEXT_SECONDARY} !important;
+        color: var(--text-secondary) !important;
     }}
     [data-testid="stFileUploader"] button {{
-        background: {BTN_BG} !important;
-        color: {TEXT_PRIMARY} !important;
-        border: 1px solid {BORDER_CARD} !important;
+        background: var(--btn-bg) !important;
+        color: var(--text-primary) !important;
+        border: 1px solid var(--border-card) !important;
     }}
     /* 上传器内所有 div 背景覆盖 */
     [data-testid="stFileUploader"] div {{
@@ -705,67 +710,67 @@ st.markdown(f"""
     }}
     /* 上传器拖拽区域专门处理 */
     [data-testid="stFileUploader"] [data-testid="stFileUploadDragzone"] {{
-        background: {UPLOAD_BG} !important;
-        border: 1px dashed {UPLOAD_BORDER} !important;
+        background: var(--upload-bg) !important;
+        border: 1px dashed var(--upload-border) !important;
     }}
 
     /* ---------- spinner ---------- */
     .stSpinner.stSpinner > div {{
-        border-color: {TEXT_MUTED} !important;
+        border-color: var(--text-muted) !important;
     }}
 
     /* ---------- tooltip ---------- */
     [data-baseweb="tooltip"] {{
-        background: {BG_CARD_GLASS} !important;
+        background: var(--bg-card-glass) !important;
         backdrop-filter: blur(12px);
-        color: {TEXT_PRIMARY} !important;
+        color: var(--text-primary) !important;
     }}
 
     /* ---------- 表格：数据区容器 + 所有子层级 ---------- */
     /* 先把容器显式设置为主体背景色而非 transparent */
     [data-testid="stDataFrame"] {{
-        background: {BG_PRIMARY} !important;
+        background: var(--bg-primary) !important;
     }}
     [data-testid="stDataFrame"] > div:first-child {{
-        background: {BG_PRIMARY} !important;
+        background: var(--bg-primary) !important;
     }}
     [data-testid="stDataFrame"] table {{
-        background: {BG_PRIMARY} !important;
+        background: var(--bg-primary) !important;
     }}
     [data-testid="stDataFrame"] thead {{
-        background: {BG_PRIMARY} !important;
+        background: var(--bg-primary) !important;
     }}
     [data-testid="stDataFrame"] th {{
-        background: {TABLE_TH_BG} !important;
-        color: {TEXT_MUTED} !important;
-        border-bottom: 1px solid {TABLE_TH_BORDER} !important;
+        background: var(--table-th-bg) !important;
+        color: var(--text-muted) !important;
+        border-bottom: 1px solid var(--table-th-border) !important;
     }}
     [data-testid="stDataFrame"] td {{
-        background: {BG_PRIMARY} !important;
-        color: {TEXT_SECONDARY} !important;
-        border-bottom: 1px solid {TABLE_TD_BORDER} !important;
+        background: var(--bg-primary) !important;
+        color: var(--text-secondary) !important;
+        border-bottom: 1px solid var(--table-td-border) !important;
     }}
     [data-testid="stDataFrame"] tr {{
-        background: {BG_PRIMARY} !important;
+        background: var(--bg-primary) !important;
     }}
     [data-testid="stDataFrame"] tbody {{
-        background: {BG_PRIMARY} !important;
+        background: var(--bg-primary) !important;
     }}
     [data-testid="stDataFrame"] tr:hover td {{
-        background: {TABLE_HOVER} !important;
+        background: var(--table-hover) !important;
     }}
     /* 虚拟滚动容器 */
     [data-testid="stDataFrame"] [data-testid="StyledVirtuosoItem"] {{
-        background: {BG_PRIMARY} !important;
+        background: var(--bg-primary) !important;
     }}
     [data-testid="stDataFrame"] [data-testid="StyledVirtuosoItem"] td {{
-        background: {BG_PRIMARY} !important;
+        background: var(--bg-primary) !important;
     }}
     [data-testid="stDataFrame"] div[data-testid="StyledVirtuoso"] {{
-        background: {BG_PRIMARY} !important;
+        background: var(--bg-primary) !important;
     }}
     [data-testid="stDataFrame"] [data-testid="StyledVirtuoso"] > div {{
-        background: {BG_PRIMARY} !important;
+        background: var(--bg-primary) !important;
     }}
     /* 表格内任何 emotion 容器 */
     [data-testid="stDataFrame"] [class] {{
@@ -776,6 +781,10 @@ st.markdown(f"""
         background: transparent !important;
     }}
 </style>
+""" + f"""
+<script>
+    document.documentElement.setAttribute('data-theme', '{st.session_state.theme_mode}');
+</script>
 """, unsafe_allow_html=True)
 
 # ====================================================================
@@ -807,6 +816,7 @@ with st.sidebar:
     st.markdown("<hr style='border-color: rgba(255,255,255,0.06); margin: 16px 0;'>", unsafe_allow_html=True)
 
     # ── 暗色/亮色切换 ──
+    THEME = st.session_state.theme_mode
     theme_icon = "🌙" if THEME == "dark" else "☀️"
     theme_label = "暗色主题" if THEME == "dark" else "亮色主题"
     if st.button(f"{theme_icon} 切换为{'亮色' if THEME == 'dark' else '暗色'}", use_container_width=True):
