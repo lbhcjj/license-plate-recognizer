@@ -907,8 +907,6 @@ if uploaded_files and not st.session_state.files_processed:
             new_w, new_h = int(w * scale), int(h * scale)
             img_cv = cv2.resize(img_cv, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
 
-        # 展示原图
-        st.image(img_cv, caption="原图预览", use_container_width=True)
         draw_img = img_cv.copy()
 
         # 加载动画
@@ -1056,7 +1054,6 @@ elif st.session_state.results_cache:
                 new_w, new_h = int(w * scale), int(h * scale)
                 img_cv = cv2.resize(img_cv, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
 
-            st.image(img_cv, caption="原图预览", use_container_width=True)
             draw_img = img_cv.copy()
 
             for plate_data in result["plates"]:
