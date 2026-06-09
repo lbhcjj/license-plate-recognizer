@@ -802,10 +802,7 @@ st.markdown("""
     font-size: 38px !important;
     font-weight: 800 !important;
     margin: 0 !important;
-    background: linear-gradient(135deg, #ffd700, #ff8c00);
-    -webkit-background-clip: text !important;
-    -webkit-text-fill-color: transparent !important;
-    background-clip: text !important;
+    color: #7ec8e3 !important;
     letter-spacing: 2px !important;
 }
 .app-header .subtitle {
