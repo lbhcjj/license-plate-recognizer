@@ -799,23 +799,24 @@ st.markdown("""
     position: relative !important;
 }
 .app-header h1 {
-    font-size: 36px !important;
-    font-weight: 700 !important;
+    font-size: 38px !important;
+    font-weight: 800 !important;
     margin: 0 !important;
-    background: linear-gradient(135deg, #64ffda, #40c4ff);
+    background: linear-gradient(135deg, #ffd700, #ff8c00);
     -webkit-background-clip: text !important;
     -webkit-text-fill-color: transparent !important;
     background-clip: text !important;
+    letter-spacing: 2px !important;
 }
 .app-header .subtitle {
-    color: #8892b0 !important;
+    color: #a0a0b8 !important;
     font-size: 14px !important;
-    margin: 6px 0 0 0 !important;
+    margin: 8px 0 0 0 !important;
     letter-spacing: 1px !important;
 }
 @media (max-width: 768px) {
-    .app-header { padding: 20px 0 6px 0 !important; margin-bottom: 10px !important; }
-    .app-header h1 { font-size: 22px !important; white-space: nowrap !important; }
+    .app-header { padding: 16px 0 4px 0 !important; margin-bottom: 8px !important; }
+    .app-header h1 { font-size: 26px !important; white-space: nowrap !important; letter-spacing: 1px !important; }
     .app-header .subtitle { font-size: 11px !important; }
 }
 </style>
