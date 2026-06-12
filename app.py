@@ -228,7 +228,8 @@ st.markdown("""
     .badge-medium { background: rgba(245,158,11,0.15); color: #d97706; }
     .badge-low { background: rgba(239,68,68,0.15); color: #dc2626; }
     .ai-box { background: rgba(64,196,255,0.06); border-left: 4px solid #40c4ff; border-radius: 12px; padding: 16px 20px; margin: 12px 0; }
-    @media (min-width: 769px) { header[data-testid="stHeader"] { display: none !important; } }
+    /* 桌面端保留 header（含右上角明暗切换按钮），仅隐藏 Streamlit 装饰条 */
+    #stDecoration, .stDecoration { display: none !important; }
 </style>
 """, unsafe_allow_html=True)
 
