@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-AI车牌识别系统 - 最终完美版（极致细节优化）
+AI车牌识别系统 - 最终融合版
+动效：扫描波纹 + AI脉冲流光进度条
+功能：图片识别 · 手动修正 · ZIP批量 · 统计筛选 · CSV/Excel导出
 """
 
 import streamlit as st
@@ -192,8 +194,7 @@ def deepseek_analyze(context_info, api_key):
         messages=[{"role": "system", "content": system_msg},
                   {"role": "user", "content": f"{context_info}\n请给出：1.归属地 2.合理性评价"}]
     )
-    if (not resp.choices or not resp.choices[0].message
-            or not resp.choices[0].message.content):
+    if not resp.choices or not resp.choices[0].message or not resp.choices[0].message.content:
         return "AI 分析暂不可用：API 返回格式异常，请稍后重试"
     return resp.choices[0].message.content
 
@@ -210,13 +211,46 @@ for key in ["uploader_key", "files_processed", "last_file_count", "zip_processed
         st.session_state[key] = 0 if key not in ("zip_processed", "zip_name") else False if key == "zip_processed" else None
 
 # ====================================================================
-# CSS样式
+# CSS 主题 + 扫描动画 + AI 动效
 # ====================================================================
 st.markdown("""
 <style>
-    :root { --bg-primary: #0b0e1a; --bg-card: rgba(255,255,255,0.04); --text-primary: #e0e0e0; }
-    html[data-theme="light"] { --bg-primary: #ffffff; --bg-card: rgba(0,0,0,0.02); --text-primary: #1a1a1a; }
-    .stApp { background: var(--bg-primary) !important; }
+    /* ---------- CSS 变量（亮/暗） ---------- */
+    :root, html[data-theme="dark"] {
+        --bg-primary: #0b0e1a;
+        --bg-card: rgba(255,255,255,0.04);
+        --bg-card-hover: rgba(255,255,255,0.07);
+        --border-card: rgba(255,255,255,0.06);
+        --text-primary: #e0e0e0;
+        --text-secondary: #c8cdd8;
+        --text-muted: #8892b0;
+        --ai-box-bg: rgba(64,196,255,0.06);
+        --ai-box-border: rgba(64,196,255,0.15);
+        --divider-color: rgba(255,255,255,0.08);
+        --input-bg: rgba(255,255,255,0.06);
+        --btn-bg: rgba(255,255,255,0.06);
+        --sidebar-bg: rgba(11,14,26,0.98);
+        --upload-bg: rgba(255,255,255,0.03);
+        --upload-border: rgba(255,255,255,0.12);
+    }
+    html[data-theme="light"] {
+        --bg-primary: #ffffff;
+        --bg-card: rgba(0,0,0,0.02);
+        --bg-card-hover: rgba(0,0,0,0.05);
+        --border-card: rgba(0,0,0,0.08);
+        --text-primary: #1a1a1a;
+        --text-secondary: #4a4a4a;
+        --text-muted: #6b7280;
+        --ai-box-bg: rgba(64,196,255,0.08);
+        --ai-box-border: rgba(64,196,255,0.2);
+        --divider-color: rgba(0,0,0,0.1);
+        --input-bg: rgba(0,0,0,0.04);
+        --btn-bg: rgba(0,0,0,0.04);
+        --sidebar-bg: #f8fafc;
+        --upload-bg: rgba(0,0,0,0.02);
+        --upload-border: rgba(0,0,0,0.15);
+    }
+    .stApp { background: var(--bg-primary) !important; color: var(--text-primary); }
     .app-header { text-align: center; padding: 20px 0; }
     .app-header h1 { font-size: 36px; font-weight: 800; color: #7ec8e3; margin: 0; }
     .plate-card { background: var(--bg-card); border-radius: 16px; padding: 20px; margin: 10px 0; }
@@ -227,9 +261,28 @@ st.markdown("""
     .badge-high { background: rgba(16,185,129,0.15); color: #059669; }
     .badge-medium { background: rgba(245,158,11,0.15); color: #d97706; }
     .badge-low { background: rgba(239,68,68,0.15); color: #dc2626; }
-    .ai-box { background: rgba(64,196,255,0.06); border-left: 4px solid #40c4ff; border-radius: 12px; padding: 16px 20px; margin: 12px 0; }
-    /* 桌面端保留 header（含右上角明暗切换按钮），仅隐藏 Streamlit 装饰条 */
-    #stDecoration, .stDecoration { display: none !important; }
+    .ai-box { background: var(--ai-box-bg); border-left: 4px solid #40c4ff; border-radius: 12px; padding: 16px 20px; margin: 12px 0; }
+
+    /* ---------- 扫描动画 ---------- */
+    @keyframes dot-bounce { 0%,80%,100% { transform: scale(0); } 40% { transform: scale(1); } }
+    .scan-loader { display: flex; align-items: center; gap: 14px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px 20px; margin: 10px 0; }
+    .scan-dots { display: flex; gap: 5px; }
+    .scan-dots span { width: 8px; height: 8px; border-radius: 50%; display: inline-block; animation: dot-bounce 1.4s ease-in-out infinite both; }
+    .scan-dots span:nth-child(1) { background: #64ffda; animation-delay: -0.32s; }
+    .scan-dots span:nth-child(2) { background: #40c4ff; animation-delay: -0.16s; }
+    .scan-dots span:nth-child(3) { background: #b388ff; animation-delay: 0s; }
+    .scan-text { color: #8892b0; font-size: 14px; font-weight: 500; }
+    .scan-text.active { color: #64ffda; }
+
+    /* ---------- AI 分析动效 ---------- */
+    .ai-loader { display: flex; align-items: center; gap: 16px; background: rgba(64,196,255,0.05); border: 1px solid rgba(64,196,255,0.15); border-radius: 12px; padding: 16px 20px; margin: 10px 0; }
+    .ai-pulse-ring { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #40c4ff; animation: ai-pulse 1.5s ease-in-out infinite; flex-shrink: 0; }
+    @keyframes ai-pulse { 0% { transform: scale(0.8); opacity: 0.6; } 50% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(0.8); opacity: 0.6; } }
+    .ai-loader-content { display: flex; flex-direction: column; gap: 10px; flex: 1; }
+    .ai-loader-text { color: #40c4ff; font-size: 15px; font-weight: 600; letter-spacing: 1px; }
+    .ai-loader-bar { height: 3px; background: rgba(64,196,255,0.15); border-radius: 2px; overflow: hidden; width: 100%; }
+    .ai-loader-fill { height: 100%; width: 30%; background: linear-gradient(90deg, transparent, #40c4ff, transparent); border-radius: 2px; animation: ai-loading-bar 1.8s ease-in-out infinite; }
+    @keyframes ai-loading-bar { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } }
 </style>
 """, unsafe_allow_html=True)
 
@@ -242,12 +295,10 @@ with st.sidebar:
     st.markdown("### ⚙️ 设置")
     st.text_input("DeepSeek API Key", type="password", placeholder="sk-...（空则跳过AI分析）", key="api_key")
     conf_threshold = st.slider("置信度阈值", 0.1, 1.0, 0.6, 0.05)
-
     st.markdown("---")
     st.caption(f"📋 已识别 **{len(st.session_state.history)}** 条记录")
 
     if st.button("🗑️ 清空记录", use_container_width=True):
-        # 清空时一并清除所有编辑状态和导出缓存
         for key in list(st.session_state.keys()):
             if key.startswith("edit_") or key.startswith("export_"):
                 del st.session_state[key]
@@ -261,33 +312,20 @@ with st.sidebar:
         st.rerun()
 
     if st.session_state.history:
-        # 预计算导出数据（避免每帧重绘都调用 to_excel）
-        hkey = "export_" + str(len(st.session_state.history))
-        if hkey not in st.session_state:
-            df = pd.DataFrame(st.session_state.history)
-            df_export = df.drop(columns=["id", "file_md5"], errors="ignore")
-            st.session_state[hkey] = {
-                "csv": df_export.to_csv(index=False, encoding="utf-8-sig").encode(),
-                "xlsx": to_excel(df),
-            }
-        export = st.session_state[hkey]
+        df = pd.DataFrame(st.session_state.history)
+        df_export = df.drop(columns=["id", "file_md5"], errors="ignore")
         col1, col2 = st.columns(2)
         with col1:
-            st.download_button("📥 CSV", export["csv"],
-                             "车牌识别记录.csv", use_container_width=True)
+            st.download_button("📥 CSV", df_export.to_csv(index=False, encoding="utf-8-sig").encode(), "车牌识别记录.csv", use_container_width=True)
         with col2:
-            st.download_button("📥 Excel", export["xlsx"], "车牌识别记录.xlsx",
-                             use_container_width=True)
-
-    st.markdown("---")
-    st.caption("💡 依赖：pip install openpyxl")
+            st.download_button("📥 Excel", to_excel(df), "车牌识别记录.xlsx", use_container_width=True)
 
 # ====================================================================
-# 三大核心Tab
+# 核心 Tab
 # ====================================================================
 tab1, tab2, tab3 = st.tabs(["📷 图片识别", "📦 ZIP批量", "📊 统计筛选"])
 
-# ========== Tab1: 图片识别 ==========
+# ---------- Tab1: 图片识别 ----------
 with tab1:
     uploaded_files = st.file_uploader(
         "选择图片（支持批量 JPG / PNG）",
@@ -304,7 +342,6 @@ with tab1:
     if uploaded_files and not st.session_state.files_processed:
         st.session_state.results_cache = []
         lpr = load_lpr()
-
         progress_bar = st.progress(0)
         status_text = st.empty()
 
@@ -314,7 +351,6 @@ with tab1:
 
             file_bytes = file.read()
             file_md5 = get_file_hash(file_bytes)
-
             img_bgr = cv2.imdecode(np.frombuffer(file_bytes, np.uint8), cv2.IMREAD_COLOR)
             if img_bgr is None:
                 try:
@@ -327,14 +363,23 @@ with tab1:
             img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
             draw_img = img_rgb.copy()
 
-            with st.spinner(f"识别中: {file.name}"):
+            # 扫描动画
+            loader = st.empty()
+            loader.markdown("""
+            <div class="scan-loader">
+                <div class="scan-dots"><span></span><span></span><span></span></div>
+                <span class="scan-text active">🔍 扫描车牌中</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+            with st.spinner(""):
                 res_list = parse_lpr_results(lpr(img_bgr))
+            loader.empty()
 
             if not res_list:
                 st.error(f"⚠️ [{file.name}] 未检测到车牌")
                 continue
 
-            # 第一遍：画框 + 收集数据
             plates_info = []
             for i, one_plate in enumerate(res_list):
                 draw_img = draw_plate_box(draw_img, one_plate)
@@ -350,17 +395,16 @@ with tab1:
                     "box": one_plate["box"], "file_md5": file_md5, "idx": i,
                 })
 
-            # ✅ 先展示标注图
             st.image(draw_img, caption=f"🎯 {file.name}", use_container_width=True)
 
-            # ✅ 再渲染结果卡片 + 编辑 + AI
             for info in plates_info:
                 render_plate_card(info["fmt_plate"], info["color"], info["conf"], info["ptype"], info["addr"])
 
+                # 编辑修正
                 edit_key = f"edit_{info['file_md5']}_{info['idx']}"
                 if st.button(f"✏️ 编辑修正", key=f"btn_{edit_key}", use_container_width=True):
                     st.session_state[edit_key] = True
-
+                    st.rerun()
                 if st.session_state.get(edit_key, False):
                     new_plate = st.text_input("修正车牌号", value=info["fmt_plate"], key=f"input_{edit_key}")
                     col_ok, col_cancel = st.columns(2)
@@ -369,6 +413,11 @@ with tab1:
                             for h in st.session_state.history:
                                 if h.get("file_md5") == info["file_md5"] and h["原始号牌"] == info["raw"]:
                                     h["号牌"] = f"{new_plate[:2]}·{new_plate[2:]}"
+                            for cache in st.session_state.results_cache:
+                                if cache["file_md5"] == info["file_md5"]:
+                                    for p in cache["plates"]:
+                                        if p["fmt_plate"] == info["fmt_plate"]:
+                                            p["fmt_plate"] = f"{new_plate[:2]}·{new_plate[2:]}"
                             st.session_state[edit_key] = False
                             st.success("已修正！")
                             st.rerun()
@@ -377,9 +426,20 @@ with tab1:
                             st.session_state[edit_key] = False
                             st.rerun()
 
+                # AI 分析动效
                 if st.session_state.api_key.strip():
-                    with st.spinner("🧠 AI分析中"):
-                        ai_ret = deepseek_analyze(f"车牌号：{info['fmt_plate']}，类型：{info['ptype']}", st.session_state.api_key.strip())
+                    loader2 = st.empty()
+                    loader2.markdown("""
+                    <div class="ai-loader">
+                        <div class="ai-pulse-ring"></div>
+                        <div class="ai-loader-content">
+                            <span class="ai-loader-text">🧠 AI 智能分析中</span>
+                            <div class="ai-loader-bar"><div class="ai-loader-fill"></div></div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    ai_ret = deepseek_analyze(f"车牌号：{info['fmt_plate']}，类型：{info['ptype']}", st.session_state.api_key.strip())
+                    loader2.empty()
                     st.markdown(f'<div class="ai-box"><strong>🧠 AI 分析</strong><br>{ai_ret}</div>', unsafe_allow_html=True)
 
                 if not any(h.get("file_md5") == info["file_md5"] and h["原始号牌"] == info["raw"] for h in st.session_state.history):
@@ -394,7 +454,7 @@ with tab1:
                         "离线属地": info["addr"]
                     })
 
-            # 缓存已标注图片（JPEG 压缩）
+            # 缓存已标注图
             _, compressed = cv2.imencode('.jpg', cv2.cvtColor(draw_img, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 85])
             st.session_state.results_cache.append({
                 "file_name": file.name,
@@ -413,25 +473,21 @@ with tab1:
                 img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
                 st.image(img_rgb, use_container_width=True)
 
-# ========== Tab2: ZIP批量 ==========
+# ---------- Tab2: ZIP批量 ----------
 with tab2:
     st.markdown("### 📦 ZIP批量处理")
     uploaded_zip = st.file_uploader("上传包含图片的ZIP压缩包", type="zip")
-
     if uploaded_zip:
         if uploaded_zip.name != st.session_state.zip_name:
             st.session_state.zip_processed = False
             st.session_state.zip_name = uploaded_zip.name
-
         with zipfile.ZipFile(uploaded_zip, 'r') as zf:
             image_files = [f for f in zf.namelist() if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
             st.info(f"发现 {len(image_files)} 张图片")
-
             if st.button("🚀 开始批量识别", type="primary") and not st.session_state.zip_processed:
                 st.session_state.zip_processed = True
                 lpr = load_lpr()
                 progress = st.progress(0)
-
                 for idx, img_name in enumerate(image_files):
                     progress.progress((idx + 1) / len(image_files))
                     with zf.open(img_name) as f:
@@ -441,7 +497,6 @@ with tab2:
                             img_bgr = resize_image_if_needed(img_bgr)
                             res_list = parse_lpr_results(lpr(img_bgr))
                             file_md5 = get_file_hash(file_bytes)
-
                             for one_plate in res_list:
                                 fmt_plate, raw, conf, ptype, addr = smart_plate_parser(
                                     one_plate["plate"], one_plate["color"], conf_threshold, one_plate["confidence"]
@@ -458,47 +513,31 @@ with tab2:
                                         "离线属地": addr
                                     })
                                     st.success(f"{img_name}: {fmt_plate}")
-
                 st.success("✅ 批量处理完成！")
                 st.session_state.zip_processed = False
 
-# ========== Tab3: 统计筛选 ==========
+# ---------- Tab3: 统计筛选 ----------
 with tab3:
     st.markdown("### 📊 统计分析与筛选")
-
     if not st.session_state.history:
         st.info("暂无识别记录，请先上传图片识别")
     else:
         df = pd.DataFrame(st.session_state.history)
         df_display = df.drop(columns=["id", "file_md5"], errors="ignore")
-
         if len(df_display) > 0:
             col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("总识别数", len(df_display))
-            with col2:
-                st.metric("新能源占比", f"{df_display['车辆类型'].str.contains('新能源').mean():.1%}")
-            with col3:
-                st.metric("平均置信度", f"{df_display['置信度'].mean():.1%}")
-            with col4:
-                st.metric("涉及属地", df_display["离线属地"].nunique())
-
+            with col1: st.metric("总识别数", len(df_display))
+            with col2: st.metric("新能源占比", f"{df_display['车辆类型'].str.contains('新能源').mean():.1%}")
+            with col3: st.metric("平均置信度", f"{df_display['置信度'].mean():.1%}")
+            with col4: st.metric("涉及属地", df_display["离线属地"].nunique())
         st.subheader("🔍 筛选记录")
         col1, col2, col3 = st.columns(3)
-        with col1:
-            addr_filter = st.multiselect("属地筛选", sorted(df_display["离线属地"].unique()))
-        with col2:
-            type_filter = st.multiselect("类型筛选", sorted(df_display["车辆类型"].unique()))
-        with col3:
-            conf_min = st.slider("最小置信度", 0.0, 1.0, 0.0)
-
+        with col1: addr_filter = st.multiselect("属地筛选", sorted(df_display["离线属地"].unique()))
+        with col2: type_filter = st.multiselect("类型筛选", sorted(df_display["车辆类型"].unique()))
+        with col3: conf_min = st.slider("最小置信度", 0.0, 1.0, 0.0)
         mask = df_display["置信度"] >= conf_min
-        if addr_filter:
-            mask &= df_display["离线属地"].isin(addr_filter)
-        if type_filter:
-            mask &= df_display["车辆类型"].isin(type_filter)
-
+        if addr_filter: mask &= df_display["离线属地"].isin(addr_filter)
+        if type_filter: mask &= df_display["车辆类型"].isin(type_filter)
         st.dataframe(df_display[mask], use_container_width=True, height=300)
-
         st.subheader("📈 属地分布")
         st.bar_chart(df_display["离线属地"].value_counts())
