@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-AI车牌识别系统
-技术栈：HyperLPR3 车牌检测识别 + DeepSeek 大模型智能分析
-功能：图片压缩、多车牌标注、离线属地、CSV导出、接口重试
+AI车牌识别系统 - 最终完美版（极致细节优化）
 """
 
 import streamlit as st
@@ -16,8 +14,63 @@ from PIL import Image
 from io import BytesIO
 import time
 from functools import wraps
+import zipfile
+import hashlib
+import uuid
 
-# ========== 模块常量 ==========
+# ====================================================================
+# 工具函数
+# ====================================================================
+def get_file_hash(file_bytes):
+    return hashlib.md5(file_bytes).hexdigest()
+
+def resize_image_if_needed(img, max_size=1920):
+    h, w = img.shape[:2]
+    if max(w, h) > max_size:
+        scale = max_size / max(w, h)
+        img = cv2.resize(img, (int(w*scale), int(h*scale)), interpolation=cv2.INTER_LANCZOS4)
+    return img
+
+def to_excel(df):
+    output = BytesIO()
+    df_export = df.drop(columns=["id", "file_md5"], errors="ignore")
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_export.to_excel(writer, index=False, sheet_name='识别记录')
+    return output.getvalue()
+
+def draw_plate_box(img_rgb, plate_item):
+    box = plate_item.get("box")
+    if not box or len(box) != 4:
+        return img_rgb
+    try:
+        x1, y1, x2, y2 = map(int, box)
+        cv2.rectangle(img_rgb, (x1, y1), (x2, y2), (120, 255, 0), 3)
+        cv2.rectangle(img_rgb, (x1, y1), (x2, y2), (80, 200, 0), 1)
+    except Exception:
+        pass
+    return img_rgb
+
+def render_plate_card(fmt_plate, color_cls, conf, ptype, addr):
+    badge_cls = "badge-high" if conf >= 0.85 else "badge-medium" if conf >= 0.6 else "badge-low"
+    badge_txt = "高" if conf >= 0.85 else "中" if conf >= 0.6 else "低"
+    st.markdown(f"""
+    <div class="plate-card">
+        <div class="plate-number {color_cls}">{fmt_plate}</div>
+        <div class="result-metrics">
+            <div><div>📊 置信度</div><span class="badge {badge_cls}">{conf:.0%} · {badge_txt}</span></div>
+            <div><div>🏷️ 类型</div><div style="font-weight:600">{ptype}</div></div>
+            <div><div>📍 属地</div><div style="font-weight:600">{addr}</div></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+@st.cache_resource
+def load_lpr():
+    return lpr3.LicensePlateCatcher()
+
+# ====================================================================
+# 常量配置
+# ====================================================================
 PROVINCE_MAP = {
     "京": "北京市", "沪": "上海市", "津": "天津市", "渝": "重庆市",
     "冀": "河北省", "豫": "河南省", "云": "云南省", "辽": "辽宁省",
@@ -34,6 +87,7 @@ PROVINCE_MAP = {
 EV_PURE = {'D', 'A', 'B', 'C', 'E'}
 EV_HYBRID = {'F', 'G', 'H', 'J', 'K'}
 EV_OTHER = {'L', 'M', 'N', 'P', 'R'}
+EV_ALL = EV_PURE | EV_HYBRID | EV_OTHER
 
 PROVINCE = r'[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤青藏川宁琼使领]'
 CITY = r'[A-Z]'
@@ -41,9 +95,10 @@ RULE_BLUE = re.compile(f'^{PROVINCE}{CITY}[A-Z0-9]{{5}}$')
 RULE_GREEN = re.compile(f'^{PROVINCE}{CITY}[A-Z0-9]{{6}}$')
 RULE_YELLOW = re.compile(f'^{PROVINCE}{CITY}[A-Z0-9]{{4,5}}$')
 
-
-# API重试装饰器
-def retry_api(max_retry=2, sleep_sec=1):
+# ====================================================================
+# 核心解析函数
+# ====================================================================
+def retry_api(max_retry=2):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -54,16 +109,16 @@ def retry_api(max_retry=2, sleep_sec=1):
                 except Exception as e:
                     err = e
                     if i < max_retry:
-                        time.sleep(sleep_sec)
-            return f"调用失败，重试{max_retry}次仍异常：{str(err)}"
+                        time.sleep(1)
+            return f"调用失败：{type(err).__name__}"
         return wrapper
     return decorator
-
 
 def smart_plate_parser(raw_plate, plate_color, conf_threshold=0.6, confidence=0.0):
     raw_plate = raw_plate.replace('·', '').strip()
     if confidence < conf_threshold:
         return None, raw_plate, confidence, "识别无效(置信度过低)", ""
+
     plate_color = plate_color.lower() if plate_color else 'unknown'
     plate_type = "未知类型"
     formatted_plate = raw_plate
@@ -71,1058 +126,378 @@ def smart_plate_parser(raw_plate, plate_color, conf_threshold=0.6, confidence=0.
 
     if plate_color == 'green':
         if RULE_GREEN.match(raw_plate):
-            third_char = raw_plate[2] if len(raw_plate) >= 3 else ''
-            if third_char in EV_PURE:
-                plate_type = "新能源汽车（纯电动）"
-            elif third_char in EV_HYBRID:
-                plate_type = "新能源汽车（插电混动/增程）"
-            elif third_char in EV_OTHER:
-                plate_type = "新能源汽车（特殊号段）"
-            else:
-                plate_type = "新能源汽车"
-            formatted_plate = f"{raw_plate[:2]}·{raw_plate[2:]}" if len(raw_plate) >= 2 else raw_plate
-        else:
-            plate_type = "新能源(格式异常)"
+            energy_char = raw_plate[2] if len(raw_plate) >= 3 else ''
+            if energy_char not in EV_ALL:
+                plate_type = "新能源(格式异常)"
+            elif energy_char in EV_PURE:
+                plate_type = "新能源（纯电动·小型车）"
+            elif energy_char in EV_HYBRID:
+                plate_type = "新能源（插电混动·小型车）"
+            elif energy_char in EV_OTHER:
+                plate_type = "新能源（特殊号段·小型车）"
+            formatted_plate = f"{raw_plate[:2]}·{raw_plate[2:]}"
     elif plate_color == 'blue':
         if RULE_BLUE.match(raw_plate):
             plate_type = "燃油汽车"
-            formatted_plate = f"{raw_plate[:2]}·{raw_plate[2:]}" if len(raw_plate) >= 2 else raw_plate
-        else:
-            plate_type = "燃油车(格式异常)"
+            formatted_plate = f"{raw_plate[:2]}·{raw_plate[2:]}"
     elif plate_color == 'yellow':
         if RULE_YELLOW.match(raw_plate):
-            plate_type = "大型黄牌车辆"
-            formatted_plate = f"{raw_plate[:2]}·{raw_plate[2:]}" if len(raw_plate) >= 2 else raw_plate
-        else:
-            plate_type = "黄牌车辆(格式异常)"
+            energy_char = raw_plate[-1] if len(raw_plate) >= 1 else ''
+            if energy_char in EV_PURE:
+                plate_type = "新能源（纯电动·大型车）"
+            elif energy_char in EV_HYBRID:
+                plate_type = "新能源（插电混动·大型车）"
+            else:
+                plate_type = "大型黄牌车辆"
+            formatted_plate = f"{raw_plate[:2]}·{raw_plate[2:]}"
     else:
         if RULE_GREEN.match(raw_plate):
             plate_type = "新能源汽车（推断）"
-            formatted_plate = f"{raw_plate[:2]}·{raw_plate[2:]}" if len(raw_plate) >= 2 else raw_plate
+            formatted_plate = f"{raw_plate[:2]}·{raw_plate[2:]}"
         elif RULE_BLUE.match(raw_plate):
             plate_type = "燃油汽车（推断）"
-            formatted_plate = f"{raw_plate[:2]}·{raw_plate[2:]}" if len(raw_plate) >= 2 else raw_plate
-        else:
-            plate_type = "未知格式车牌"
+            formatted_plate = f"{raw_plate[:2]}·{raw_plate[2:]}"
+        elif RULE_YELLOW.match(raw_plate):
+            plate_type = "大型黄牌车辆（推断）"
+            formatted_plate = f"{raw_plate[:2]}·{raw_plate[2:]}"
+
     return formatted_plate, raw_plate, confidence, plate_type, addr
-
-
-@st.cache_resource
-def load_lpr():
-    return lpr3.LicensePlateCatcher()
-
 
 def parse_lpr_results(results_tuple):
     results_dict = []
+    seen_plates = set()
     for item in results_tuple:
         try:
             if len(item) < 4:
                 continue
             plate_str = str(item[0])
+            if plate_str in seen_plates:
+                continue
+            seen_plates.add(plate_str)
             conf = float(item[1])
             box = item[3] if len(item) > 3 else None
-            color = 'unknown'
-            if len(item) >= 5 and isinstance(item[4], str):
-                color = item[4].lower()
-            if box and isinstance(box, (list, tuple)) and len(box) == 4:
-                results_dict.append({
-                    "plate": plate_str,
-                    "confidence": conf,
-                    "color": color,
-                    "box": box
-                })
+            color = item[4].lower() if len(item) >= 5 and isinstance(item[4], str) else 'unknown'
+            if box and len(box) == 4:
+                results_dict.append({"plate": plate_str, "confidence": conf, "color": color, "box": box})
         except Exception:
             continue
     return results_dict
 
-
-def draw_plate_box(img_bgr, plate_item):
-    box = plate_item.get("box")
-    if box is None or not isinstance(box, (list, tuple)) or len(box) != 4:
-        return img_bgr
-    try:
-        x1, y1, x2, y2 = map(int, box)
-        # 更醒目的标注框
-        cv2.rectangle(img_bgr, (x1, y1), (x2, y2), (0, 255, 120), 3)
-        cv2.rectangle(img_bgr, (x1, y1), (x2, y2), (0, 200, 80), 1)
-        # 标签背景
-        label = plate_item["plate"]
-        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMLEX, 0.7, 2)
-        cv2.rectangle(img_bgr, (x1, y1 - th - 10), (x1 + tw + 8, y1), (0, 200, 80), -1)
-        cv2.putText(img_bgr, label, (x1 + 4, y1 - 5),
-                    cv2.FONT_HERSHEY_SIMLEX, 0.7, (0, 0, 0), 2)
-    except Exception:
-        pass
-    return img_bgr
-
-
 @retry_api(max_retry=2)
-def deepseek_analyze(plate_number, context_info, api_key):
-    client = OpenAI(
-        api_key=api_key,
-        base_url="https://api.deepseek.com",
-        timeout=15.0
-    )
-    system_msg = (
-        "你是车牌分析专家。用户会提供系统已识别的车牌号和类型。"
-        "请基于此分析归属地（根据车牌首汉字），并评价识别结果是否合理。"
-        "新能源车牌第三位可为 D/A/B/C/E（纯电）或 F/G/H/J/K（插混），请认可此类格式。"
-    )
-    user_msg = f"{context_info}\n请给出：1.归属地 2.合理性评价。"
+def deepseek_analyze(context_info, api_key):
+    client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com", timeout=15.0)
+    system_msg = "严格遵循GA36-2018：小型新能源第3位=D/A/B/C/E/F/G/H/J/K，第4位可以是数字。示例：粤AD38467=合法"
     resp = client.chat.completions.create(
         model="deepseek-v4-flash",
         messages=[{"role": "system", "content": system_msg},
-                  {"role": "user", "content": user_msg}]
+                  {"role": "user", "content": f"{context_info}\n请给出：1.归属地 2.合理性评价"}]
     )
+    if (not resp.choices or not resp.choices[0].message
+            or not resp.choices[0].message.content):
+        return "AI 分析暂不可用：API 返回格式异常，请稍后重试"
     return resp.choices[0].message.content
-
 
 # ====================================================================
 # 页面初始化
 # ====================================================================
 st.set_page_config(page_title="AI车牌识别系统", layout="wide", page_icon="🚗")
 
-if "history" not in st.session_state:
-    st.session_state.history = []
-if "uploader_key" not in st.session_state:
-    st.session_state.uploader_key = 0
-if "files_processed" not in st.session_state:
-    st.session_state.files_processed = False
-if "results_cache" not in st.session_state:
-    st.session_state.results_cache = []
-if "api_key" not in st.session_state:
-    st.session_state.api_key = ""
+for key in ["history", "results_cache", "api_key"]:
+    if key not in st.session_state:
+        st.session_state[key] = [] if key != "api_key" else ""
+for key in ["uploader_key", "files_processed", "last_file_count", "zip_processed", "zip_name"]:
+    if key not in st.session_state:
+        st.session_state[key] = 0 if key not in ("zip_processed", "zip_name") else False if key == "zip_processed" else None
 
 # ====================================================================
-# 主题 CSS（根据暗色/亮色切换）
+# CSS样式
 # ====================================================================
-
 st.markdown("""
 <style>
-    /* ========== CSS 自定义属性（主题色） ========== */
-    :root {
-        --bg-primary: #0b0e1a;
-        --bg-card: rgba(255, 255, 255, 0.04);
-        --bg-card-hover: rgba(255, 255, 255, 0.07);
-        --bg-card-glass: rgba(255, 255, 255, 0.05);
-        --border-card: rgba(255, 255, 255, 0.06);
-        --border-card-hover: rgba(255, 255, 255, 0.12);
-        --text-primary: #e0e0e0;
-        --text-secondary: #c8cdd8;
-        --text-muted: #8892b0;
-        --text-heading: #f0f4ff;
-        --sidebar-bg: rgba(11, 14, 26, 0.98);
-        --table-th-bg: rgba(255,255,255,0.06);
-        --table-td-border: rgba(255,255,255,0.04);
-        --table-th-border: rgba(255,255,255,0.08);
-        --table-hover: rgba(255,255,255,0.03);
-        --upload-bg: rgba(255,255,255,0.03);
-        --upload-border: rgba(255,255,255,0.12);
-        --scroll-thumb: #2a2d40;
-        --scroll-thumb-hover: #3a3d55;
-        --loader-bg: rgba(255, 255, 255, 0.04);
-        --loader-border: rgba(255, 255, 255, 0.08);
-        --ai-box-bg: rgba(64, 196, 255, 0.06);
-        --ai-box-border: rgba(64, 196, 255, 0.15);
-        --divider-color: rgba(255,255,255,0.08);
-        --input-bg: rgba(255,255,255,0.06);
-        --btn-bg: rgba(255,255,255,0.06);
-        --alert-bg: rgba(255,255,255,0.04);
-        --sidebar-text: #c8cdd8;
-        --caption-color: #8892b0;
-        --expander-bg: rgba(255,255,255,0.04);
-    }
-    /* ---------- 全局 ---------- */
-    html, body, #root {{
-        background: var(--bg-primary) !important;
-    }}
-    .stApp {{
-        background: var(--bg-primary) !important;
-        color: var(--text-primary);
-    }}
-    .block-container {{
-        padding: 1.5rem 2rem !important;
-        max-width: 1400px;
-        margin: 0 auto;
-    }}
-    ::-webkit-scrollbar {{ width: 6px; }}
-    ::-webkit-scrollbar-track {{ background: var(--bg-primary); }}
-    ::-webkit-scrollbar-thumb {{ background: var(--scroll-thumb); border-radius: 3px; }}
-    ::-webkit-scrollbar-thumb:hover {{ background: var(--scroll-thumb-hover); }}
-
-    /* ---------- 标题文字 ---------- */
-    h1, h2, h3, h4 {{
-        color: var(--text-heading) !important;
-        letter-spacing: 0.3px;
-    }}
-    p, li, .stMarkdown {{
-        color: var(--text-secondary);
-    }}
-
-    /* ---------- 标题横幅 ---------- */
-
-/* ---------- 结果卡片 ---------- */
-    .plate-card {{
-        background: var(--bg-card);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid var(--border-card);
-        border-radius: 16px;
-        padding: 18px 16px;
-        margin: 8px 0;
-        transition: all 0.25s ease;
-    }}
-    .plate-card:hover {{
-        background: var(--bg-card-hover);
-        border-color: var(--border-card-hover);
-    }}
-
-    /* 车牌号码大号展示 */
-    .plate-number {{
-        font-size: 28px;
-        font-weight: 700;
-        letter-spacing: 3px;
-        font-family: 'Courier New', monospace;
-        text-align: center;
-        padding: 8px 0;
-    }}
-    .plate-number.blue {{ color: #4fc3f7; }}
-    .plate-number.green {{ color: #81c784; }}
-    .plate-number.yellow {{ color: #ffd54f; }}
-    .plate-number.default {{ color: var(--text-primary); }}
-
-    .badge {{
-        display: inline-block;
-        padding: 3px 12px;
-        border-radius: 20px;
-        font-size: 13px;
-        font-weight: 600;
-    }}
-    .badge-high   {{ background: rgba(100, 255, 218, 0.15); color: #64ffda; border: 1px solid rgba(100,255,218,0.3); }}
-    .badge-medium {{ background: rgba(255, 213, 79, 0.15);  color: #ffd54f; border: 1px solid rgba(255,213,79,0.3); }}
-    .badge-low    {{ background: rgba(255, 82, 82, 0.15);   color: #ff5252; border: 1px solid rgba(255,82,82,0.3); }}
-
-/* ---------- 加载动画 ---------- */
-    @keyframes dot-bounce {{
-        0%, 80%, 100% {{ transform: scale(0); }}
-        40% {{ transform: scale(1); }}
-    }}
-    .scan-loader {{
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        background: var(--loader-bg);
-        border: 1px solid var(--loader-border);
-        border-radius: 12px;
-        padding: 14px 20px;
-        margin: 10px 0;
-        backdrop-filter: blur(8px);
-    }}
-    .scan-dots {{
-        display: flex;
-        gap: 5px;
-    }}
-    .scan-dots span {{
-        width: 8px; height: 8px;
-        border-radius: 50%;
-        display: inline-block;
-        animation: dot-bounce 1.4s ease-in-out infinite both;
-    }}
-    .scan-dots span:nth-child(1) {{ background: #64ffda; animation-delay: -0.32s; }}
-    .scan-dots span:nth-child(2) {{ background: #40c4ff; animation-delay: -0.16s; }}
-    .scan-dots span:nth-child(3) {{ background: #b388ff; animation-delay: 0s; }}
-    .scan-text {{
-        color: var(--text-muted);
-        font-size: 14px;
-        font-weight: 500;
-        letter-spacing: 0.5px;
-    }}
-    .scan-text.active {{ color: #64ffda; }}
-    .scan-text.blue   {{ color: #40c4ff; }}
-
-    /* ---------- 侧边栏 ---------- */
-    [data-testid="stSidebar"] {{
-        background: var(--sidebar-bg) !important;
-        border-right: 1px solid var(--border-card);
-    }}
-    [data-testid="stSidebar"] .stMarkdown {{
-        color: var(--text-secondary);
-    }}
-
-
-    /* ---------- 消息框 ---------- */
-    .stAlert {{ border-radius: 10px !important; border: none !important; }}
-    [data-testid="stAlert"] {{ padding: 12px 16px !important; }}
-    div[data-baseweb="alert"] {{ border-radius: 10px !important; }}
-
-    /* ---------- 按钮 ---------- */
-    .stButton button {{
-        border-radius: 10px !important;
-        font-weight: 500 !important;
-        transition: all 0.2s ease !important;
-        border: 1px solid var(--border-card) !important;
-    }}
-    .stButton button:hover {{
-        transform: translateY(-1px);
-        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-    }}
-
-    /* ---------- 上传组件 ---------- */
-    [data-testid="stFileUploader"] {{
-        background: var(--upload-bg);
-        border: 1px dashed var(--upload-border);
-        border-radius: 14px;
-        padding: 10px;
-        transition: border-color 0.3s;
-    }}
-    [data-testid="stFileUploader"]:hover {{
-        border-color: rgba(100,255,218,0.3);
-    }}
-
-    /* ---------- 分割线 ---------- */
-    .section-divider {{
-        border: none;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, var(--divider-color), transparent);
-        margin: 28px 0;
-    }}
-
-    /* ---------- 响应式 ---------- */
-    @media (max-width: 768px) {{
-        .block-container {{ padding: 1rem 1rem !important; }}
-        .plate-number {{ font-size: 22px; letter-spacing: 2px; }}
-        .plate-card {{ padding: 14px 10px; }}
-    @media (max-width: 480px) {{
-        .block-container {{ padding: 0.6rem 0.6rem !important; }}
-        .plate-number {{ font-size: 18px; }}
-    }}
-
-    /* ================================================================
-       以下覆盖 Streamlit 原生组件，确保亮色模式彻底无暗色残留
-       使用双倍 class (e.g. .stTextInput.stTextInput) 提高特异性
-       ================================================================ */
-
-    /* ---------- 顶部黑杠（仅桌面端隐藏，手机端保留 ☰ 汉堡菜单） ---------- */
-    @media (min-width: 769px) {{
-        header[data-testid="stHeader"] {{
-            display: none !important;
-        }}
-        #stDecoration, .stDecoration {{
-            display: none !important;
-        }}
-    }}
-    @media (max-width: 768px) {{
-        header[data-testid="stHeader"] {{
-            display: flex !important;
-            background: var(--bg-primary) !important;
-            backdrop-filter: blur(10px) !important;
-            border: none !important;
-            height: 40px !important;
-            min-height: 40px !important;
-        }}
-        header[data-testid="stHeader"] button {{
-            color: var(--text-primary) !important;
-        }}
-        header[data-testid="stHeader"] svg {{
-            fill: var(--text-primary) !important;
-        }}
-    }}
-    .stApp {{
-        margin-top: 0 !important;
-    }}
-
-    /* ---------- 主内容区 ---------- */
-    .main > div {{ background: transparent !important; }}
-    section[data-testid="stSidebar"] .stMarkdown,
-    section[data-testid="stSidebar"] p,
-    section[data-testid="stSidebar"] li,
-    section[data-testid="stSidebar"] span {{
-        color: var(--sidebar-text) !important;
-    }}
-    section[data-testid="stSidebar"] .stCaption {{
-        color: var(--caption-color) !important;
-    }}
-
-    /* ---------- 文本输入框：全覆盖 ---------- */
-    .stTextInput.stTextInput {{
-        background: transparent !important;
-    }}
-    .stTextInput.stTextInput > div {{
-        background-color: var(--input-bg) !important;
-        border-radius: 10px !important;
-        border: 1px solid var(--border-card) !important;
-    }}
-    .stTextInput.stTextInput > div > div {{
-        background-color: transparent !important;
-    }}
-    /* 输入文字颜色（双保险：color + -webkit-text-fill-color） */
-    .stTextInput.stTextInput input {{
-        background-color: transparent !important;
-        color: var(--text-primary) !important;
-        -webkit-text-fill-color: var(--text-primary) !important;
-        caret-color: var(--text-primary) !important;
-        border: none !important;
-        box-shadow: none !important;
-    }}
-    .stTextInput.stTextInput input::placeholder {{
-        color: var(--text-muted) !important;
-        -webkit-text-fill-color: var(--text-muted) !important;
-        opacity: 0.7 !important;
-    }}
-    .stTextInput.stTextInput label {{
-        color: var(--text-secondary) !important;
-    }}
-    /* password 眼睛图标（所有 SVG 层次全覆盖） */
-    .stTextInput [data-testid="stTextInputVisibilityToggle"] {{
-        color: var(--text-secondary) !important;
-        opacity: 0.65 !important;
-    }}
-    .stTextInput [data-testid="stTextInputVisibilityToggle"] *,
-    .stTextInput [data-testid="stTextInputVisibilityToggle"] svg,
-    .stTextInput [data-testid="stTextInputVisibilityToggle"] svg *,
-    .stTextInput [data-testid="stTextInputVisibilityToggle"] svg path,
-    .stTextInput [data-testid="stTextInputVisibilityToggle"] svg circle,
-    .stTextInput [data-testid="stTextInputVisibilityToggle"] svg line,
-    .stTextInput [data-testid="stTextInputVisibilityToggle"] svg polygon {{
-        fill: var(--text-secondary) !important;
-        color: var(--text-secondary) !important;
-        stroke: var(--text-secondary) !important;
-    }}
-    .stTextInput [data-testid="stTextInputVisibilityToggle"]:hover {{
-        opacity: 1 !important;
-    }}
-
-    /* ---------- 滑块 ---------- */
-    .stSlider.stSlider label {{
-        color: var(--text-secondary) !important;
-    }}
-    .stSlider.stSlider div[data-testid="stTickBar"] {{
-        color: var(--text-muted) !important;
-    }}
-
-    /* ---------- 普通按钮 + 下载按钮 ---------- */
-    .stButton.stButton button,
-    .stDownloadButton.stDownloadButton button {{
-        background: var(--btn-bg) !important;
-        color: var(--text-primary) !important;
-        border: 1px solid var(--border-card) !important;
-        border-radius: 10px !important;
-    }}
-    .stButton.stButton button:hover,
-    .stDownloadButton.stDownloadButton button:hover {{
-        background: var(--bg-card-hover) !important;
-        border-color: var(--border-card-hover) !important;
-    }}
-
-    /* ---------- Alert / info / error / success ---------- */
-    .stAlert.stAlert {{
-        background: var(--alert-bg) !important;
-        backdrop-filter: blur(8px);
-        color: var(--text-secondary) !important;
-    }}
-
-    /* ---------- 图片 caption ---------- */
-    .stImage.stImage figcaption {{
-        color: var(--caption-color) !important;
-        font-size: 13px !important;
-    }}
-
-    /* ---------- 展开器 ---------- */
-    .streamlit-expanderHeader {{
-        background: var(--expander-bg) !important;
-        color: var(--text-primary) !important;
-    }}
-    .streamlit-expanderHeader:hover {{
-        background: var(--bg-card-hover) !important;
-    }}
-    .streamlit-expanderContent {{
-        background: transparent !important;
-    }}
-
-    /* ---------- 选择框等 ---------- */
-    .stSelectbox.stSelectbox div[data-baseweb="select"] > div {{
-        background-color: var(--input-bg) !important;
-        border: 1px solid var(--border-card) !important;
-    }}
-
-    /* ---------- 分隔线 ---------- */
-    hr {{
-        border-color: var(--divider-color) !important;
-    }}
-
-    /* ---------- 文件上传器：背景+文字全覆盖 ---------- */
-    [data-testid="stFileUploader"] {{
-        background: var(--upload-bg) !important;
-    }}
-    [data-testid="stFileUploader"] section {{
-        color: var(--text-secondary) !important;
-    }}
-    [data-testid="stFileUploader"] button {{
-        background: var(--btn-bg) !important;
-        color: var(--text-primary) !important;
-        border: 1px solid var(--border-card) !important;
-    }}
-    /* 上传器内所有 div 背景覆盖 */
-    [data-testid="stFileUploader"] div {{
-        background: transparent !important;
-    }}
-    /* 上传器拖拽区域专门处理 */
-    [data-testid="stFileUploader"] [data-testid="stFileUploadDragzone"] {{
-        background: var(--upload-bg) !important;
-        border: 1px dashed var(--upload-border) !important;
-    }}
-
-    /* ---------- spinner ---------- */
-    .stSpinner.stSpinner > div {{
-        border-color: var(--text-muted) !important;
-    }}
-
-    /* ---------- tooltip ---------- */
-    [data-baseweb="tooltip"] {{
-        background: var(--bg-card-glass) !important;
-        backdrop-filter: blur(12px);
-        color: var(--text-primary) !important;
-    }}
-
-    /* ---------- 表格：数据区容器 + 所有子层级 ---------- */
-    /* 先把容器显式设置为主体背景色而非 transparent */
-    [data-testid="stDataFrame"] {{
-        background: var(--bg-primary) !important;
-    }}
-    [data-testid="stDataFrame"] > div:first-child {{
-        background: var(--bg-primary) !important;
-    }}
-    [data-testid="stDataFrame"] table {{
-        background: var(--bg-primary) !important;
-    }}
-    [data-testid="stDataFrame"] thead {{
-        background: var(--bg-primary) !important;
-    }}
-    [data-testid="stDataFrame"] th {{
-        background: var(--table-th-bg) !important;
-        color: var(--text-muted) !important;
-        border-bottom: 1px solid var(--table-th-border) !important;
-    }}
-    [data-testid="stDataFrame"] td {{
-        background: var(--bg-primary) !important;
-        color: var(--text-secondary) !important;
-        border-bottom: 1px solid var(--table-td-border) !important;
-    }}
-    [data-testid="stDataFrame"] tr {{
-        background: var(--bg-primary) !important;
-    }}
-    [data-testid="stDataFrame"] tbody {{
-        background: var(--bg-primary) !important;
-    }}
-    [data-testid="stDataFrame"] tr:hover td {{
-        background: var(--table-hover) !important;
-    }}
-    /* 虚拟滚动容器 */
-    [data-testid="stDataFrame"] [data-testid="StyledVirtuosoItem"] {{
-        background: var(--bg-primary) !important;
-    }}
-    [data-testid="stDataFrame"] [data-testid="StyledVirtuosoItem"] td {{
-        background: var(--bg-primary) !important;
-    }}
-    [data-testid="stDataFrame"] div[data-testid="StyledVirtuoso"] {{
-        background: var(--bg-primary) !important;
-    }}
-    [data-testid="stDataFrame"] [data-testid="StyledVirtuoso"] > div {{
-        background: var(--bg-primary) !important;
-    }}
-    /* 表格内任何 emotion 容器 */
-    [data-testid="stDataFrame"] [class] {{
-        background: transparent !important;
-    }}
-    /* 表格区域所有 div 背景清除（确保无暗色残留） */
-    [data-testid="stDataFrame"] div {{
-        background: transparent !important;
-    }}
+    :root { --bg-primary: #0b0e1a; --bg-card: rgba(255,255,255,0.04); --text-primary: #e0e0e0; }
+    html[data-theme="light"] { --bg-primary: #ffffff; --bg-card: rgba(0,0,0,0.02); --text-primary: #1a1a1a; }
+    .stApp { background: var(--bg-primary) !important; }
+    .app-header { text-align: center; padding: 20px 0; }
+    .app-header h1 { font-size: 36px; font-weight: 800; color: #7ec8e3; margin: 0; }
+    .plate-card { background: var(--bg-card); border-radius: 16px; padding: 20px; margin: 10px 0; }
+    .plate-number { font-size: 32px; font-weight: 700; letter-spacing: 3px; font-family: 'Courier New', monospace; text-align: center; }
+    .plate-number.blue { color: #4fc3f7; } .plate-number.green { color: #81c784; } .plate-number.yellow { color: #ffd54f; }
+    .result-metrics { display: flex; justify-content: space-around; text-align: center; gap: 8px; margin-top: 16px; }
+    .badge { padding: 3px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+    .badge-high { background: rgba(16,185,129,0.15); color: #059669; }
+    .badge-medium { background: rgba(245,158,11,0.15); color: #d97706; }
+    .badge-low { background: rgba(239,68,68,0.15); color: #dc2626; }
+    .ai-box { background: rgba(64,196,255,0.06); border-left: 4px solid #40c4ff; border-radius: 12px; padding: 16px 20px; margin: 12px 0; }
+    @media (min-width: 769px) { header[data-testid="stHeader"] { display: none !important; } }
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("""
-<style>
-/* ── 标题居中修复（原CSS因双花括号问题失效） ── */
-.app-header {
-    text-align: center !important;
-    padding: 28px 0 12px 0 !important;
-    margin-bottom: 20px !important;
-    position: relative !important;
-}
-.app-header h1 {
-    font-size: 38px !important;
-    font-weight: 800 !important;
-    margin: 0 !important;
-    color: #7ec8e3 !important;
-    letter-spacing: 2px !important;
-}
-.app-header .subtitle {
-    color: #a0a0b8 !important;
-    font-size: 14px !important;
-    margin: 8px 0 0 0 !important;
-    letter-spacing: 1px !important;
-}
-@media (max-width: 768px) {
-    .app-header { padding: 16px 0 4px 0 !important; margin-bottom: 8px !important; }
-    .app-header h1 { font-size: 26px !important; white-space: nowrap !important; letter-spacing: 1px !important; }
-    .app-header .subtitle { font-size: 11px !important; }
-}
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<style>
-/* ── 识别结果卡片（更醒目的布局） ── */
-.result-card {
-    border: 1px solid var(--border-card) !important;
-    background: var(--bg-card) !important;
-    margin: 16px 0 !important;
-    border-radius: 16px !important;
-    padding: 20px 16px !important;
-}
-.result-header {
-    text-align: center;
-    padding: 8px 0 16px 0;
-    border-bottom: 1px solid var(--divider-color);
-    margin-bottom: 16px;
-}
-.result-header .plate-number {
-    font-size: 36px !important;
-    letter-spacing: 4px !important;
-}
-.result-metrics {
-    display: flex !important;
-    justify-content: space-around !important;
-    text-align: center !important;
-    gap: 8px !important;
-}
-.result-metric {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    flex: 1;
-}
-.metric-icon { font-size: 22px; }
-.metric-label {
-    font-size: 11px;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    font-weight: 500;
-}
-.metric-value {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-@media (max-width: 768px) {
-    .result-header .plate-number { font-size: 28px !important; letter-spacing: 2px !important; }
-    .metric-icon { font-size: 18px; }
-    .metric-label { font-size: 10px; }
-    .metric-value { font-size: 13px; }
-}
-
-/* ── AI 分析加载动画（脉冲环 + 流光进度条） ── */
-.ai-loader {
-    display: flex !important;
-    align-items: center !important;
-    gap: 16px !important;
-    background: rgba(64, 196, 255, 0.05) !important;
-    border: 1px solid rgba(64, 196, 255, 0.15) !important;
-    border-radius: 12px !important;
-    padding: 16px 20px !important;
-    margin: 10px 0 !important;
-    position: relative !important;
-    overflow: hidden !important;
-}
-.ai-pulse-ring {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: 2px solid #40c4ff;
-    animation: ai-pulse 1.5s ease-in-out infinite;
-    flex-shrink: 0;
-}
-@keyframes ai-pulse {
-    0% { transform: scale(0.8); opacity: 0.6; }
-    50% { transform: scale(1.2); opacity: 1; }
-    100% { transform: scale(0.8); opacity: 0.6; }
-}
-.ai-loader-content {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    flex: 1;
-}
-.ai-loader-text {
-    color: #40c4ff !important;
-    font-size: 15px !important;
-    font-weight: 600 !important;
-    letter-spacing: 1px !important;
-    animation: ai-text-glow 2s ease-in-out infinite;
-}
-@keyframes ai-text-glow {
-    0%, 100% { opacity: 0.7; }
-    50% { opacity: 1; text-shadow: 0 0 8px rgba(64,196,255,0.3); }
-}
-.ai-loader-bar {
-    height: 3px;
-    background: rgba(64, 196, 255, 0.15);
-    border-radius: 2px;
-    overflow: hidden;
-    width: 100%;
-}
-.ai-loader-fill {
-    height: 100%;
-    width: 30%;
-    background: linear-gradient(90deg, transparent, #40c4ff, transparent);
-    border-radius: 2px;
-    animation: ai-loading-bar 1.8s ease-in-out infinite;
-}
-@keyframes ai-loading-bar {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(400%); }
-}
-
-/* ── AI 分析结果框放大 ── */
-.ai-box {
-    background: var(--ai-box-bg) !important;
-    border: 1px solid var(--ai-box-border) !important;
-    border-left: 4px solid #40c4ff !important;
-    border-radius: 12px !important;
-    padding: 18px 22px !important;
-    margin: 12px 0 !important;
-    font-size: 16px !important;
-    line-height: 1.8 !important;
-    color: var(--text-primary) !important;
-}
-.ai-box strong {
-    color: #40c4ff !important;
-    font-size: 18px !important;
-}
-@media (max-width: 768px) {
-    .ai-box { font-size: 15px !important; padding: 14px 16px !important; }
-    .ai-box strong { font-size: 16px !important; }
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ====================================================================
-# 顶部标题
-# ====================================================================
-st.markdown("""
-<div class="app-header">
-    <h1>🚗 AI 车牌识别系统</h1>
-    <p class="subtitle">HyperLPR3 车牌检测 · DeepSeek 智能分析 · 多车牌标注 · 记录导出</p>
-</div>
-""", unsafe_allow_html=True)
+st.markdown('<div class="app-header"><h1>🚗 AI 车牌识别系统</h1><p style="color:#8892b0;margin:0">精准识别 · 手动修正 · 批量处理 · 智能分析</p></div>', unsafe_allow_html=True)
 
 # ====================================================================
 # 侧边栏
 # ====================================================================
 with st.sidebar:
     st.markdown("### ⚙️ 设置")
-
-    st.text_input(
-        "DeepSeek API Key",
-        type="password",
-        placeholder="sk-... (空则跳过AI分析)",
-        help="在 deepseek.com 申请，用于大模型分析",
-        key="api_key"
-    )
-
+    st.text_input("DeepSeek API Key", type="password", placeholder="sk-...（空则跳过AI分析）", key="api_key")
     conf_threshold = st.slider("置信度阈值", 0.1, 1.0, 0.6, 0.05)
 
-    st.markdown("<hr style='border-color: rgba(255,255,255,0.06); margin: 16px 0;'>", unsafe_allow_html=True)
+    st.markdown("---")
+    st.caption(f"📋 已识别 **{len(st.session_state.history)}** 条记录")
 
-
-    col_info, col_btn = st.columns([1, 1])
-    with col_info:
-        st.caption(f"📋 已识别 **{len(st.session_state.history)}** 条记录")
-    with col_btn:
-        if st.button("🗑️ 清空", use_container_width=True):
-            st.session_state.history = []
-            st.session_state.uploader_key += 1
-            st.session_state.files_processed = False
-            st.session_state.results_cache = []
-            st.rerun()
+    if st.button("🗑️ 清空记录", use_container_width=True):
+        # 清空时一并清除所有编辑状态和导出缓存
+        for key in list(st.session_state.keys()):
+            if key.startswith("edit_") or key.startswith("export_"):
+                del st.session_state[key]
+        st.session_state.history = []
+        st.session_state.uploader_key += 1
+        st.session_state.files_processed = False
+        st.session_state.results_cache = []
+        st.session_state.last_file_count = 0
+        st.session_state.zip_processed = False
+        st.session_state.zip_name = None
+        st.rerun()
 
     if st.session_state.history:
-        df_export = pd.DataFrame(st.session_state.history)
-        csv_bytes = df_export.to_csv(index=False, encoding="utf-8-sig").encode()
-        st.download_button(
-            "📥 导出 CSV",
-            csv_bytes,
-            "车牌识别记录.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
+        # 预计算导出数据（避免每帧重绘都调用 to_excel）
+        hkey = "export_" + str(len(st.session_state.history))
+        if hkey not in st.session_state:
+            df = pd.DataFrame(st.session_state.history)
+            df_export = df.drop(columns=["id", "file_md5"], errors="ignore")
+            st.session_state[hkey] = {
+                "csv": df_export.to_csv(index=False, encoding="utf-8-sig").encode(),
+                "xlsx": to_excel(df),
+            }
+        export = st.session_state[hkey]
+        col1, col2 = st.columns(2)
+        with col1:
+            st.download_button("📥 CSV", export["csv"],
+                             "车牌识别记录.csv", use_container_width=True)
+        with col2:
+            st.download_button("📥 Excel", export["xlsx"], "车牌识别记录.xlsx",
+                             use_container_width=True)
+
+    st.markdown("---")
+    st.caption("💡 依赖：pip install openpyxl")
 
 # ====================================================================
-# 主界面
+# 三大核心Tab
 # ====================================================================
+tab1, tab2, tab3 = st.tabs(["📷 图片识别", "📦 ZIP批量", "📊 统计筛选"])
 
-# 上传组件（动态 key）
-uploaded_files = st.file_uploader(
-    "选择图片（支持批量 JPG / PNG）",
-    type=["jpg", "jpeg", "png"],
-    accept_multiple_files=True,
-    key=f"uploader_{st.session_state.uploader_key}"
-)
+# ========== Tab1: 图片识别 ==========
+with tab1:
+    uploaded_files = st.file_uploader(
+        "选择图片（支持批量 JPG / PNG）",
+        type=["jpg", "jpeg", "png"],
+        accept_multiple_files=True,
+        key=f"uploader_{st.session_state.uploader_key}"
+    )
 
-if uploaded_files and not st.session_state.files_processed:
-    # ── 首次处理：识别 + 缓存 + 前端显示 ──
-    st.session_state.results_cache = []
-    lpr = load_lpr()
+    current_file_count = len(uploaded_files) if uploaded_files else 0
+    if current_file_count != st.session_state.last_file_count:
+        st.session_state.files_processed = False
+        st.session_state.last_file_count = current_file_count
 
-    for idx, file in enumerate(uploaded_files):
-        file_bytes = file.read()
-        img_cv = cv2.imdecode(np.frombuffer(file_bytes, np.uint8), cv2.IMREAD_COLOR)
-        if img_cv is None:
-            try:
-                img_pil = Image.open(BytesIO(file_bytes))
-                img_cv = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
-            except Exception:
-                st.error(f"⚠️ [{file.name}] 无法解析图片，请检查格式")
+    if uploaded_files and not st.session_state.files_processed:
+        st.session_state.results_cache = []
+        lpr = load_lpr()
+
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+
+        for idx, file in enumerate(uploaded_files):
+            status_text.text(f"正在处理: {file.name} ({idx+1}/{len(uploaded_files)})")
+            progress_bar.progress((idx + 1) / len(uploaded_files))
+
+            file_bytes = file.read()
+            file_md5 = get_file_hash(file_bytes)
+
+            img_bgr = cv2.imdecode(np.frombuffer(file_bytes, np.uint8), cv2.IMREAD_COLOR)
+            if img_bgr is None:
+                try:
+                    img_bgr = cv2.cvtColor(np.array(Image.open(BytesIO(file_bytes))), cv2.COLOR_RGB2BGR)
+                except Exception:
+                    st.error(f"⚠️ [{file.name}] 无法解析")
+                    continue
+
+            img_bgr = resize_image_if_needed(img_bgr)
+            img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+            draw_img = img_rgb.copy()
+
+            with st.spinner(f"识别中: {file.name}"):
+                res_list = parse_lpr_results(lpr(img_bgr))
+
+            if not res_list:
+                st.error(f"⚠️ [{file.name}] 未检测到车牌")
                 continue
 
-        img_cv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
-        h, w = img_cv.shape[:2]
-        if max(w, h) > 1920:
-            scale = 1920 / max(w, h)
-            new_w, new_h = int(w * scale), int(h * scale)
-            img_cv = cv2.resize(img_cv, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
-
-        draw_img = img_cv.copy()
-
-        # 加载动画
-        loader = st.empty()
-        loader.markdown("""
-        <div class="scan-loader">
-            <div class="scan-dots"><span></span><span></span><span></span></div>
-            <span class="scan-text active">🔍 扫描车牌中</span>
-        </div>
-        """, unsafe_allow_html=True)
-
-        try:
-            res_tuple = lpr(img_cv)
-        except Exception as e:
-            loader.empty()
-            st.error(f"⚠️ [{file.name}] 识别异常：{e}")
-            continue
-
-        res_list = parse_lpr_results(res_tuple)
-        if not res_list:
-            loader.empty()
-            st.error(f"⚠️ [{file.name}] 未检测到任何车牌")
-            continue
-
-        loader.empty()
-
-        plates_cache = []
-        display_data = []
-
-        # 第一遍：在图上绘制所有标注框，收集结果数据
-        for one_plate in res_list:
-            draw_img = draw_plate_box(draw_img, one_plate)
-            fmt_plate, raw, conf, ptype, addr = smart_plate_parser(
-                one_plate["plate"], one_plate["color"], conf_threshold, one_plate["confidence"]
-            )
-            if not fmt_plate:
-                st.error(f"❌ {ptype}｜{raw}")
-                continue
-
-            color_cls = one_plate.get("color", "unknown").lower()
-            if color_cls not in ("blue", "green", "yellow"):
-                color_cls = "default"
-
-            if conf >= 0.85:
-                badge_cls, badge_txt = "badge-high", "高"
-            elif conf >= 0.60:
-                badge_cls, badge_txt = "badge-medium", "中"
-            else:
-                badge_cls, badge_txt = "badge-low", "低"
-
-            display_data.append({
-                "fmt_plate": fmt_plate, "raw": raw, "conf": conf,
-                "ptype": ptype, "addr": addr, "color_cls": color_cls,
-                "badge_cls": badge_cls, "badge_txt": badge_txt,
-            })
-
-            # 写历史（去重）
-            already_exists = any(
-                h["图片名称"] == file.name and h["号牌"] == fmt_plate
-                for h in st.session_state.history
-            )
-            if not already_exists:
-                st.session_state.history.append({
-                    "图片名称": file.name,
-                    "号牌": fmt_plate,
-                    "原始号牌": raw,
-                    "置信度": round(conf, 2),
-                    "车辆类型": ptype,
-                    "离线属地": addr
+            # 第一遍：画框 + 收集数据
+            plates_info = []
+            for i, one_plate in enumerate(res_list):
+                draw_img = draw_plate_box(draw_img, one_plate)
+                fmt_plate, raw, conf, ptype, addr = smart_plate_parser(
+                    one_plate["plate"], one_plate["color"], conf_threshold, one_plate["confidence"]
+                )
+                if not fmt_plate:
+                    continue
+                plates_info.append({
+                    "fmt_plate": fmt_plate, "raw": raw, "conf": conf,
+                    "ptype": ptype, "addr": addr,
+                    "color": one_plate["color"] if one_plate["color"] in ("blue", "green", "yellow") else "default",
+                    "box": one_plate["box"], "file_md5": file_md5, "idx": i,
                 })
 
-            # 写入缓存
-            plates_cache.append({
-                "box": one_plate["box"],
-                "plate": one_plate["plate"],
-                "fmt_plate": fmt_plate,
-                "raw": raw,
-                "confidence": conf,
-                "ptype": ptype,
-                "addr": addr,
-                "color": one_plate.get("color", "unknown"),
+            # ✅ 先展示标注图
+            st.image(draw_img, caption=f"🎯 {file.name}", use_container_width=True)
+
+            # ✅ 再渲染结果卡片 + 编辑 + AI
+            for info in plates_info:
+                render_plate_card(info["fmt_plate"], info["color"], info["conf"], info["ptype"], info["addr"])
+
+                edit_key = f"edit_{info['file_md5']}_{info['idx']}"
+                if st.button(f"✏️ 编辑修正", key=f"btn_{edit_key}", use_container_width=True):
+                    st.session_state[edit_key] = True
+
+                if st.session_state.get(edit_key, False):
+                    new_plate = st.text_input("修正车牌号", value=info["fmt_plate"], key=f"input_{edit_key}")
+                    col_ok, col_cancel = st.columns(2)
+                    with col_ok:
+                        if st.button("✅ 确认修改", key=f"ok_{edit_key}"):
+                            for h in st.session_state.history:
+                                if h.get("file_md5") == info["file_md5"] and h["原始号牌"] == info["raw"]:
+                                    h["号牌"] = f"{new_plate[:2]}·{new_plate[2:]}"
+                            st.session_state[edit_key] = False
+                            st.success("已修正！")
+                            st.rerun()
+                    with col_cancel:
+                        if st.button("❌ 取消", key=f"cancel_{edit_key}"):
+                            st.session_state[edit_key] = False
+                            st.rerun()
+
+                if st.session_state.api_key.strip():
+                    with st.spinner("🧠 AI分析中"):
+                        ai_ret = deepseek_analyze(f"车牌号：{info['fmt_plate']}，类型：{info['ptype']}", st.session_state.api_key.strip())
+                    st.markdown(f'<div class="ai-box"><strong>🧠 AI 分析</strong><br>{ai_ret}</div>', unsafe_allow_html=True)
+
+                if not any(h.get("file_md5") == info["file_md5"] and h["原始号牌"] == info["raw"] for h in st.session_state.history):
+                    st.session_state.history.append({
+                        "id": str(uuid.uuid4()),
+                        "file_md5": info["file_md5"],
+                        "图片名称": file.name,
+                        "号牌": info["fmt_plate"],
+                        "原始号牌": info["raw"],
+                        "置信度": round(info["conf"], 2),
+                        "车辆类型": info["ptype"],
+                        "离线属地": info["addr"]
+                    })
+
+            # 缓存已标注图片（JPEG 压缩）
+            _, compressed = cv2.imencode('.jpg', cv2.cvtColor(draw_img, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 85])
+            st.session_state.results_cache.append({
+                "file_name": file.name,
+                "file_md5": file_md5,
+                "cached_img_bytes": compressed.tobytes(),
+                "plates": [{"box": p["box"], "fmt_plate": p["fmt_plate"]} for p in plates_info],
             })
 
-        # 先展示标注图
-        st.image(draw_img, caption="🎯 车牌框标注效果图", use_container_width=True)
+        status_text.text("✅ 全部处理完成！")
+        st.session_state.files_processed = True
 
-        # 在标注图下方展示每个车牌的详细结果
-        for item in display_data:
-            st.markdown(f"""
-            <div class="plate-card result-card">
-                <div class="result-header">
-                    <span class="plate-number {item['color_cls']}">{item['fmt_plate']}</span>
-                </div>
-                <div class="result-metrics">
-                    <div class="result-metric">
-                        <span class="metric-icon">📊</span>
-                        <span class="metric-label">置信度</span>
-                        <span class="badge {item['badge_cls']}">{item['conf']:.0%} · {item['badge_txt']}</span>
-                    </div>
-                    <div class="result-metric">
-                        <span class="metric-icon">🏷️</span>
-                        <span class="metric-label">类型</span>
-                        <span class="metric-value">{item['ptype']}</span>
-                    </div>
-                    <div class="result-metric">
-                        <span class="metric-icon">📍</span>
-                        <span class="metric-label">属地</span>
-                        <span class="metric-value">{item['addr']}</span>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+    elif st.session_state.results_cache:
+        for result in st.session_state.results_cache:
+            with st.expander(f"📷 {result['file_name']}", expanded=True):
+                img_bgr = cv2.imdecode(np.frombuffer(result["cached_img_bytes"], np.uint8), cv2.IMREAD_COLOR)
+                img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+                st.image(img_rgb, use_container_width=True)
 
-            # AI 分析（在结果卡片下方）
-            if st.session_state.api_key.strip():
-                loader2 = st.empty()
-                loader2.markdown("""
-                <div class="ai-loader">
-                    <div class="ai-pulse-ring"></div>
-                    <div class="ai-loader-content">
-                        <span class="ai-loader-text">🧠 AI 智能分析中</span>
-                        <div class="ai-loader-bar">
-                            <div class="ai-loader-fill"></div>
-                        </div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                ctx = f"车牌号：{item['fmt_plate']}，系统已识别为：{item['ptype']}。"
-                ai_ret = deepseek_analyze(item["raw"], ctx, st.session_state.api_key.strip())
-                loader2.empty()
-                st.markdown(f"""
-                <div class="ai-box">
-                    <strong>🧠 AI 分析</strong><br>
-                    {ai_ret}
-                </div>
-                """, unsafe_allow_html=True)
+# ========== Tab2: ZIP批量 ==========
+with tab2:
+    st.markdown("### 📦 ZIP批量处理")
+    uploaded_zip = st.file_uploader("上传包含图片的ZIP压缩包", type="zip")
 
-        # 整图缓存
-        st.session_state.results_cache.append({
-            "file_name": file.name,
-            "file_bytes": file_bytes,
-            "plates": plates_cache,
-        })
+    if uploaded_zip:
+        if uploaded_zip.name != st.session_state.zip_name:
+            st.session_state.zip_processed = False
+            st.session_state.zip_name = uploaded_zip.name
 
-    st.session_state.files_processed = True
+        with zipfile.ZipFile(uploaded_zip, 'r') as zf:
+            image_files = [f for f in zf.namelist() if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+            st.info(f"发现 {len(image_files)} 张图片")
 
-# ── 主题切换等 rerun 后：从缓存重显示（不重复识别、不写历史）──
-elif st.session_state.results_cache:
-    for idx, result in enumerate(st.session_state.results_cache):
-        with st.expander(f"📷 **{idx+1}. {result['file_name']}**", expanded=True):
-            # 解码原图
-            img_cv = cv2.imdecode(np.frombuffer(result["file_bytes"], np.uint8), cv2.IMREAD_COLOR)
-            if img_cv is None:
-                img_pil = Image.open(BytesIO(result["file_bytes"]))
-                img_cv = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
-            img_cv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
-            h, w = img_cv.shape[:2]
-            if max(w, h) > 1920:
-                scale = 1920 / max(w, h)
-                new_w, new_h = int(w * scale), int(h * scale)
-                img_cv = cv2.resize(img_cv, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+            if st.button("🚀 开始批量识别", type="primary") and not st.session_state.zip_processed:
+                st.session_state.zip_processed = True
+                lpr = load_lpr()
+                progress = st.progress(0)
 
-            draw_img = img_cv.copy()
+                for idx, img_name in enumerate(image_files):
+                    progress.progress((idx + 1) / len(image_files))
+                    with zf.open(img_name) as f:
+                        file_bytes = f.read()
+                        img_bgr = cv2.imdecode(np.frombuffer(file_bytes, np.uint8), cv2.IMREAD_COLOR)
+                        if img_bgr is not None:
+                            img_bgr = resize_image_if_needed(img_bgr)
+                            res_list = parse_lpr_results(lpr(img_bgr))
+                            file_md5 = get_file_hash(file_bytes)
 
-            # 绘制所有标注框
-            for plate_data in result["plates"]:
-                draw_img = draw_plate_box(draw_img, plate_data)
+                            for one_plate in res_list:
+                                fmt_plate, raw, conf, ptype, addr = smart_plate_parser(
+                                    one_plate["plate"], one_plate["color"], conf_threshold, one_plate["confidence"]
+                                )
+                                if fmt_plate and not any(h.get("file_md5") == file_md5 and h["原始号牌"] == raw for h in st.session_state.history):
+                                    st.session_state.history.append({
+                                        "id": str(uuid.uuid4()),
+                                        "file_md5": file_md5,
+                                        "图片名称": img_name,
+                                        "号牌": fmt_plate,
+                                        "原始号牌": raw,
+                                        "置信度": round(conf, 2),
+                                        "车辆类型": ptype,
+                                        "离线属地": addr
+                                    })
+                                    st.success(f"{img_name}: {fmt_plate}")
 
-            # 先展示标注图
-            st.image(draw_img, caption="🎯 车牌框标注效果图", use_container_width=True)
+                st.success("✅ 批量处理完成！")
+                st.session_state.zip_processed = False
 
-            # 在图下方展示每个车牌结果
-            for plate_data in result["plates"]:
-                color_cls = plate_data["color"].lower()
-                if color_cls not in ("blue", "green", "yellow"):
-                    color_cls = "default"
+# ========== Tab3: 统计筛选 ==========
+with tab3:
+    st.markdown("### 📊 统计分析与筛选")
 
-                conf = plate_data["confidence"]
-                if conf >= 0.85:
-                    badge_cls, badge_txt = "badge-high", "高"
-                elif conf >= 0.60:
-                    badge_cls, badge_txt = "badge-medium", "中"
-                else:
-                    badge_cls, badge_txt = "badge-low", "低"
+    if not st.session_state.history:
+        st.info("暂无识别记录，请先上传图片识别")
+    else:
+        df = pd.DataFrame(st.session_state.history)
+        df_display = df.drop(columns=["id", "file_md5"], errors="ignore")
 
-                st.markdown(f"""
-                <div class="plate-card result-card">
-                    <div class="result-header">
-                        <span class="plate-number {color_cls}">{plate_data['fmt_plate']}</span>
-                    </div>
-                    <div class="result-metrics">
-                        <div class="result-metric">
-                            <span class="metric-icon">📊</span>
-                            <span class="metric-label">置信度</span>
-                            <span class="badge {badge_cls}">{conf:.0%} · {badge_txt}</span>
-                        </div>
-                        <div class="result-metric">
-                            <span class="metric-icon">🏷️</span>
-                            <span class="metric-label">类型</span>
-                            <span class="metric-value">{plate_data['ptype']}</span>
-                        </div>
-                        <div class="result-metric">
-                            <span class="metric-icon">📍</span>
-                            <span class="metric-label">属地</span>
-                            <span class="metric-value">{plate_data['addr']}</span>
-                        </div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+        if len(df_display) > 0:
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("总识别数", len(df_display))
+            with col2:
+                st.metric("新能源占比", f"{df_display['车辆类型'].str.contains('新能源').mean():.1%}")
+            with col3:
+                st.metric("平均置信度", f"{df_display['置信度'].mean():.1%}")
+            with col4:
+                st.metric("涉及属地", df_display["离线属地"].nunique())
 
-# ====================================================================
-# 历史记录表
-# ====================================================================
-if st.session_state.history:
-    st.markdown("<hr class='section-divider'>", unsafe_allow_html=True)
+        st.subheader("🔍 筛选记录")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            addr_filter = st.multiselect("属地筛选", sorted(df_display["离线属地"].unique()))
+        with col2:
+            type_filter = st.multiselect("类型筛选", sorted(df_display["车辆类型"].unique()))
+        with col3:
+            conf_min = st.slider("最小置信度", 0.0, 1.0, 0.0)
 
-    col_title, col_export = st.columns([3, 1])
-    with col_title:
-        st.markdown("### 📋 识别记录表")
-    with col_export:
-        df_export = pd.DataFrame(st.session_state.history)
-        csv_bytes = df_export.to_csv(index=False, encoding="utf-8-sig").encode()
-        st.download_button(
-            "📥 导出 CSV",
-            csv_bytes,
-            "车牌识别记录.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
+        mask = df_display["置信度"] >= conf_min
+        if addr_filter:
+            mask &= df_display["离线属地"].isin(addr_filter)
+        if type_filter:
+            mask &= df_display["车辆类型"].isin(type_filter)
 
-    st.dataframe(st.session_state.history, use_container_width=True, height=280)
+        st.dataframe(df_display[mask], use_container_width=True, height=300)
+
+        st.subheader("📈 属地分布")
+        st.bar_chart(df_display["离线属地"].value_counts())
