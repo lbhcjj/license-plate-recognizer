@@ -26,6 +26,9 @@ env/
 *.doc
 *.docx
 
+# 压缩包
+*.zip
+
 # 系统
 Thumbs.db
 .DS_Store
