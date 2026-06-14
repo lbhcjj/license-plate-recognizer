@@ -1127,6 +1127,7 @@ with tab1:
 
         status_text.text("✅ 全部处理完成！")
         st.session_state.files_processed = True
+        st.rerun()
 
     elif st.session_state.results_cache:
         for result in st.session_state.results_cache:
