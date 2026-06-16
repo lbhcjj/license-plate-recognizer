@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash.*deploy|Bash.*git push|Bash.*streamlit",
+        "command": "file -I requirements.txt && python -c 'open(\"requirements.txt\",\"r\",encoding=\"utf-8\").read()' || echo 'WARNING: requirements.txt encoding issue!'"
+      }
+    ]
+  }
+}
