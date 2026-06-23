@@ -954,7 +954,7 @@ with st.sidebar:
         df_export = df.drop(columns=["id", "file_md5"], errors="ignore")
         col1, col2 = st.columns(2)
         with col1:
-            st.download_button("📥 CSV", df_export.to_csv(index=False, encoding="utf-8-sig").encode(), "车牌识别记录.csv", use_container_width=True)
+            st.download_button("📥 CSV", df_export.to_csv(index=False).encode("utf-8-sig"), "车牌识别记录.csv", use_container_width=True)
         with col2:
             st.download_button("📥 Excel", to_excel(df), "车牌识别记录.xlsx", use_container_width=True)
 
@@ -1196,8 +1196,9 @@ with tab1:
             st.markdown("### 📋 识别记录表")
         with col_export:
             df_export = pd.DataFrame(st.session_state.history)
-            csv_bytes = df_export.to_csv(index=False, encoding="utf-8-sig").encode()
+            csv_bytes = df_export.to_csv(index=False).encode("utf-8-sig")
             st.download_button("📥 导出 CSV", csv_bytes, "车牌识别记录.csv", mime="text/csv", use_container_width=True, key="dl_csv_tab1")
+            st.download_button("📥 导出 Excel", to_excel(df_export), "车牌识别记录.xlsx", use_container_width=True, key="dl_xlsx_tab1")
         st.dataframe(st.session_state.history, use_container_width=True, height=280)
         st.markdown('<div style="text-align:center;margin-top:12px"><a href="#tab1-top" style="color:#888;text-decoration:none;font-size:13px">⬆ 回到顶部</a></div>', unsafe_allow_html=True)
 
@@ -1354,8 +1355,9 @@ with tab2:
                     st.markdown("### 📋 识别记录表")
                 with col_export:
                     df_export = pd.DataFrame(st.session_state.history)
-                    csv_bytes = df_export.to_csv(index=False, encoding="utf-8-sig").encode()
+                    csv_bytes = df_export.to_csv(index=False).encode("utf-8-sig")
                     st.download_button("📥 导出 CSV", csv_bytes, "车牌识别记录.csv", mime="text/csv", use_container_width=True, key="dl_csv_tab2")
+                    st.download_button("📥 导出 Excel", to_excel(df_export), "车牌识别记录.xlsx", use_container_width=True, key="dl_xlsx_tab2")
                 st.dataframe(st.session_state.history, use_container_width=True, height=280)
 
 # ---------- Tab3: 统计筛选 ----------
